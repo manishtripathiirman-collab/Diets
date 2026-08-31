@@ -4,6 +4,7 @@ from datetime import datetime, date
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import time
 
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
@@ -98,8 +99,6 @@ try:
         # Initialize session state variables
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
-        if 'last_added_message' not in st.session_state:
-            st.session_state.last_added_message = None
         if 'confirm_delete_idx' not in st.session_state:
             st.session_state.confirm_delete_idx = None
         if 'confirm_clear_all' not in st.session_state:
@@ -159,13 +158,12 @@ try:
                     "metrics": {col: recipe_row[col] for col in metric_cols}
                 }
                 st.session_state.logged_meals.append(meal_data_to_log)
-                # Store persistent success message in session state so it doesn't vanish on rerun
-                st.session_state.last_added_message = f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!"
+                
+                # Show temporary success alert that vanishes automatically after 2 seconds
+                temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
+                time.sleep(2)
+                temp_alert.empty()
                 st.rerun()
-
-            # Display persistent success banner if set
-            if st.session_state.last_added_message:
-                st.success(st.session_state.last_added_message)
 
             st.divider()
 
@@ -221,8 +219,6 @@ try:
                 with col_item_btn:
                     if st.button("🗑️ Delete", key=f"del_btn_{idx}", use_container_width=True):
                         st.session_state.confirm_delete_idx = idx
-                        # Clear success message when taking action
-                        st.session_state.last_added_message = None
 
                 if st.session_state.confirm_delete_idx == idx:
                     st.warning(f"Are you sure you want to delete **{meal['recipe']}** ({meal['date']})?")
@@ -230,7 +226,6 @@ try:
                     if c_yes.button("Yes, Delete", key=f"yes_del_{idx}", use_container_width=True):
                         st.session_state.logged_meals.pop(idx)
                         st.session_state.confirm_delete_idx = None
-                        st.session_state.last_added_message = None
                         st.rerun()
                     if c_no.button("Cancel", key=f"no_del_{idx}", use_container_width=True):
                         st.session_state.confirm_delete_idx = None
@@ -281,7 +276,6 @@ try:
             if not st.session_state.confirm_clear_all:
                 if st.button("Clear Entire Log", use_container_width=True):
                     st.session_state.confirm_clear_all = True
-                    st.session_state.last_added_message = None
                     st.rerun()
             else:
                 st.warning("Are you sure you want to clear your entire log?")
@@ -289,7 +283,6 @@ try:
                 if cc_yes.button("Yes, Clear All", use_container_width=True):
                     st.session_state.logged_meals = []
                     st.session_state.confirm_clear_all = False
-                    st.session_state.last_added_message = None
                     st.rerun()
                 if cc_no.button("Cancel", use_container_width=True):
                     st.session_state.confirm_clear_all = False
