@@ -56,7 +56,7 @@ try:
             st.divider()
             st.header(f"🍽️ {recipe_row[recipe_name_col]}")
 
-            # 3. Categorize columns into Metrics vs Long Text Details
+            # 3. Strictly categorize columns: Only calories and specific macros go into horizontal metrics
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
             other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
 
@@ -65,8 +65,8 @@ try:
 
             for col in other_columns:
                 col_lower = col.lower()
-                # Treat calorie and macro columns as metrics
-                if any(m in col_lower for m in ["calorie", "kcal", "protein", "carb", "fat", "gram", "g"]):
+                # Only treat exact macro/calorie headers as small metrics widgets
+                if col_lower in ["calories", "calorie", "kcal", "protein (g)", "protein", "carbs (g)", "carbs", "fats (g)", "fats"]:
                     metric_cols.append(col)
                 else:
                     text_cols.append(col)
@@ -80,7 +80,7 @@ try:
                         cols[i].metric(label=col, value=str(val))
                 st.divider()
 
-            # Render text columns (like Ingredients, Health Benefits, etc.) as clean full-width blocks below
+            # Render all other text columns (Ingredients, Health Benefits, etc.) as full-width sections below
             for col in text_cols:
                 val = recipe_row[col]
                 if pd.notna(val) and str(val).strip() != "":
