@@ -8,13 +8,23 @@ from email.mime.multipart import MIMEMultipart
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS to strictly enforce horizontal 4-column layout on mobile devices
+# Custom CSS for polished mobile-first UI, cards, and image styling
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1rem;
         padding-bottom: 2rem;
+        max-width: 700px;
     }
+    /* Mobile-friendly banner image styling */
+    .hero-img {
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        object-fit: cover;
+        max-height: 220px;
+        width: 100%;
+    }
+    /* Force metrics side-by-side cleanly on mobile screens */
     div[data-testid="column"] {
         float: left !important;
         width: 23% !important;
@@ -33,7 +43,7 @@ st.markdown("""
         background-color: rgba(128, 128, 128, 0.08);
         border: 1px solid rgba(128, 128, 128, 0.2);
         padding: 4px 2px;
-        border-radius: 6px;
+        border-radius: 8px;
         text-align: center;
     }
     div[data-testid="stMetric"] label {
@@ -43,11 +53,21 @@ st.markdown("""
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
         font-size: 14px !important;
     }
+    /* Section card container styling */
+    .recipe-card {
+        background-color: rgba(128, 128, 128, 0.04);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.15);
+        margin-bottom: 1rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
+# App Header with appetizing header image
+st.image("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1000&q=80", use_container_width=True)
 st.title("🥗 Daily Meal Planner & Nutrition Tracker")
-st.write("Select your meals below, track your nutrition over custom date ranges, and email reports to `manishtripathi.irman@gmail.com`.")
+st.write("Select your meals, track your custom date-range nutrition, and email reports to `manishtripathi.irman@gmail.com`.")
 
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
@@ -97,7 +117,9 @@ try:
             recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
 
             st.divider()
-            st.header(f"🍽️ {recipe_row[recipe_name_col]}")
+            
+            # Recipe Card Display Wrapper
+            st.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
 
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
             other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
@@ -112,6 +134,7 @@ try:
                 else:
                     text_cols.append(col)
 
+            # Render numeric metrics strictly side-by-side
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
@@ -139,7 +162,7 @@ try:
             for col in text_cols:
                 val = recipe_row[col]
                 if pd.notna(val) and str(val).strip() != "":
-                    st.subheader(f"📌 {col}")
+                    st.markdown(f"**📌 {col}**")
                     st.write(val)
                     st.markdown("")
 
