@@ -10,7 +10,7 @@ st.write("Select a meal time below to explore recipes, nutrition details, and he
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
 
-@st.cache_data(ttl=60)  # Refresh data every 60 seconds automatically
+@st.cache_data(ttl=10)  # Shortened cache time so it updates quickly if you change the sheet
 def load_meal_data():
     data = pd.read_csv(SHEET_CSV_URL)
     # Clean up column names to avoid whitespace/casing mismatches
@@ -28,20 +28,21 @@ try:
         st.error("Could not find standard columns. Please ensure your sheet has 'Meal Type' and 'Recipe Name' column headers.")
         st.write("Current columns detected:", list(df.columns))
     else:
-        # 1. Horizontal radio buttons for Meal Categories
-        available_meal_types = df[meal_type_col].dropna().astype(str).unique().tolist()
+        # Clean up the meal type column data (strip whitespace and handle empty rows)
+        df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
+        # 1. Horizontal radio buttons for standard meal categories
         meal_category = st.radio(
             "Choose Meal Category:",
-            available_meal_types,
+            ["Breakfast", "Lunch", "Dinner"],
             horizontal=True
         )
 
-        # Filter database by selected meal type
-        filtered_df = df[df[meal_type_col].astype(str).str.strip().str.lower() == meal_category.lower()]
+        # Filter database using a flexible contains check so "Breakfast" matches "Breakfast", "Breakfast / Main", etc.
+        filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
 
         if filtered_df.empty:
-            st.info(f"No recipes found for **{meal_category}** yet.")
+            st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
         else:
             st.markdown(f"### Select an option for {meal_category}")
             
