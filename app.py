@@ -28,11 +28,14 @@ try:
         st.error("Could not find standard columns. Please ensure your sheet has 'Meal Type' and 'Recipe Name' column headers.")
         st.write("Current columns detected:", list(df.columns))
     else:
-        # 1. Main Category: Filter unique meal types available in the sheet
+        # 1. Horizontal radio buttons for Meal Categories
         available_meal_types = df[meal_type_col].dropna().astype(str).unique().tolist()
         
-        # Let users select from the categories found in the sheet
-        meal_category = st.selectbox("Choose Meal Category:", available_meal_types)
+        meal_category = st.radio(
+            "Choose Meal Category:",
+            available_meal_types,
+            horizontal=True
+        )
 
         # Filter database by selected meal type
         filtered_df = df[df[meal_type_col].astype(str).str.strip().str.lower() == meal_category.lower()]
@@ -52,24 +55,35 @@ try:
             st.divider()
             st.header(f"🍽️ {recipe_row[recipe_name_col]}")
 
-            # 3. Dynamic Display for ALL Other Columns (Calories, Macros, Health Benefits, etc.)
-            # Exclude Meal Type and Recipe Name from this loop since they are already used above
+            # 3. Separate columns into metrics (Calories, Macros) and text details (Ingredients, Health Benefits)
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
-            
             other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
 
+            metric_cols = []
+            text_cols = []
+
             for col in other_columns:
+                col_lower = col.lower()
+                if any(m in col_lower for m in ["calorie", "kcal", "protein", "carb", "fat", "gram", "g"]):
+                    metric_cols.append(col)
+                else:
+                    text_cols.append(col)
+
+            # Render numeric metrics horizontally using st.columns
+            if metric_cols:
+                cols = st.columns(len(metric_cols))
+                for i, col in enumerate(metric_cols):
+                    val = recipe_row[col]
+                    if pd.notna(val) and str(val).strip() != "":
+                        cols[i].metric(label=col, value=str(val))
+                st.divider()
+
+            # Render text columns (like Ingredients & Instructions, Health Benefits)
+            for col in text_cols:
                 val = recipe_row[col]
                 if pd.notna(val) and str(val).strip() != "":
-                    # Check if the column sounds like a numeric metric (Calories, Protein, etc.)
-                    col_lower = col.lower()
-                    if any(metric in col_lower for metric in ["calorie", "kcal", "protein", "carb", "fat", "gram", "g"]):
-                        # Display metrics nicely in small info blocks
-                        st.metric(label=col, value=str(val))
-                    else:
-                        # Display text-based columns (Ingredients & Instructions, Health Benefits, etc.) as sections
-                        st.subheader(f"📌 {col}")
-                        st.write(val)
+                    st.subheader(f"📌 {col}")
+                    st.write(val)
                     st.markdown("")
 
 except Exception as e:
