@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
@@ -12,7 +15,6 @@ st.markdown("""
         padding-top: 1.5rem;
         padding-bottom: 2rem;
     }
-    /* Force Streamlit columns to sit side-by-side even on small phone screens */
     div[data-testid="column"] {
         float: left !important;
         width: 23% !important;
@@ -23,12 +25,10 @@ st.markdown("""
     div[data-testid="column"]:last-child {
         margin-right: 0 !important;
     }
-    /* Clear floats after columns */
     .row-widget.stHorizontal {
         display: flex !important;
         flex-direction: row !important;
     }
-    /* Style metrics into compact cards */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.08);
         border: 1px solid rgba(128, 128, 128, 0.2);
@@ -47,12 +47,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🥗 Daily Meal Planner & Nutrition Tracker")
-st.write("Select your meals below to explore composition and track your daily nutrition intake.")
+st.write("Select your meals below, track your daily nutrition, and email reports to `manishtripathi.irman@gmail.com`.")
 
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
 
-@st.cache_data(ttl=10)  # Refresh data every 10 seconds automatically
+@st.cache_data(ttl=10)
 def load_meal_data():
     data = pd.read_csv(SHEET_CSV_URL)
     data.columns = [c.strip() for c in data.columns]
@@ -61,7 +61,6 @@ def load_meal_data():
 try:
     df = load_meal_data()
 
-    # Identify core columns dynamically
     meal_type_col = next((c for c in df.columns if c.lower() in ["mealtype", "meal_type", "meal type", "meal"]), None)
     recipe_name_col = next((c for c in df.columns if c.lower() in ["recipename", "recipe_name", "recipe name", "recipe", "item", "dish"]), None)
 
@@ -70,7 +69,7 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # Initialize session state for tracking daily logged meals
+        # Initialize session state for tracking logged meals with timestamps
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
 
@@ -81,7 +80,6 @@ try:
             horizontal=True
         )
 
-        # Filter database using flexible contains check
         filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
 
         if filtered_df.empty:
@@ -89,17 +87,14 @@ try:
         else:
             st.markdown(f"### Select an option for {meal_category}")
             
-            # 2. Recipe Option Selector
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
             selected_recipe = st.selectbox(f"Available Options:", recipe_list, key=f"select_{meal_category}")
 
-            # Get the row details for the selected recipe
             recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
 
             st.divider()
             st.header(f"🍽️ {recipe_row[recipe_name_col]}")
 
-            # 3. Categorize columns into Metrics vs Long Text Details
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
             other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
 
@@ -113,7 +108,6 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics strictly side-by-side
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
@@ -123,9 +117,9 @@ try:
                 st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
                 st.markdown("")
 
-            # Button to log this meal to daily tracker
             if st.button("➕ Add to Today's Food Log", type="primary", use_container_width=True):
                 meal_data_to_log = {
+                    "date": date.today(),
                     "category": meal_category,
                     "recipe": recipe_row[recipe_name_col],
                     "metrics": {col: recipe_row[col] for col in metric_cols}
@@ -135,7 +129,6 @@ try:
 
             st.divider()
 
-            # Render all text columns (Ingredients, Health Benefits, etc.) clearly
             for col in text_cols:
                 val = recipe_row[col]
                 if pd.notna(val) and str(val).strip() != "":
@@ -159,13 +152,12 @@ try:
             for idx, meal in enumerate(st.session_state.logged_meals):
                 col_item_info, col_item_btn = st.columns([3, 1])
                 with col_item_info:
-                    st.markdown(f"**{idx+1}. {meal['recipe']}** *({meal['category']})*")
+                    st.markdown(f"**{idx+1}. {meal['recipe']}** *({meal['category']})* - {meal['date']}")
                 with col_item_btn:
                     if st.button("❌ Remove", key=f"remove_{idx}", use_container_width=True):
                         st.session_state.logged_meals.pop(idx)
                         st.rerun()
                 
-                # Aggregate metrics dynamically
                 for m_key, m_val in meal['metrics'].items():
                     try:
                         val_num = float(str(m_val).replace("g", "").strip())
@@ -184,7 +176,6 @@ try:
 
             st.subheader("🎯 Total Nutrition Summary")
             
-            # Display total summary strictly side-by-side
             sum_cols = st.columns(4)
             sum_cols[0].metric("🔥 Calories", f"{total_calories:.0f}")
             sum_cols[1].metric("💪 Protein", f"{total_protein:.1f}g")
@@ -192,6 +183,73 @@ try:
             sum_cols[3].metric("🥑 Fats", f"{total_fats:.1f}g")
             st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
             st.markdown("")
+
+            # --- EMAIL REPORT SECTION WITH DATE RANGE ---
+            st.subheader("📧 Email Nutrition Report")
+            with st.form("email_form"):
+                st.write("Select date range to include in the summary report sent to **manishtripathi.irman@gmail.com**:")
+                
+                col_d1, col_d2 = st.columns(2)
+                start_date = col_d1.date_input("Start Date", value=date.today())
+                end_date = col_d2.date_input("End Date", value=date.today())
+                
+                submit_email = st.form_submit_button("Send Summary to Email", use_container_width=True)
+                
+                if submit_email:
+                    # Filter logged meals by selected date range
+                    filtered_logs = [m for m in st.session_state.logged_meals if start_date <= m['date'] <= end_date]
+                    
+                    if not filtered_logs:
+                        st.warning("No logged meals found within the selected date range.")
+                    else:
+                        # Calculate totals for the date range
+                        r_calories, r_protein, r_carbs, r_fats = 0.0, 0.0, 0.0, 0.0
+                        report_lines = []
+                        
+                        for m in filtered_logs:
+                            report_lines.append(f"- {m['date']} | {m['category']}: {m['recipe']}")
+                            for m_key, m_val in m['metrics'].items():
+                                try:
+                                    v = float(str(m_val).replace("g", "").strip())
+                                    kl = m_key.lower()
+                                    if "calorie" in kl or "kcal" in kl: r_calories += v
+                                    elif "protein" in kl: r_protein += v
+                                    elif "carb" in kl: r_carbs += v
+                                    elif "fat" in kl: r_fats += v
+                                except:
+                                    pass
+
+                        email_body = f"""Hello Manish,\n\nHere is your nutrition summary report from {start_date} to {end_date}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals:\n- Calories: {r_calories:.0f} kcal\n- Protein: {r_protein:.1f} g\n- Carbs: {r_carbs:.1f} g\n- Fats: {r_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
+
+                        # Attempt to send email via Streamlit Secrets SMTP configuration or notify setup
+                        try:
+                            # Check if SMTP secrets exist, otherwise display ready-to-copy format / simulation
+                            if "smtp" in st.secrets:
+                                smtp_user = st.secrets["smtp"]["user"]
+                                smtp_pass = st.secrets["smtp"]["password"]
+                                smtp_server = st.secrets["smtp"]["server"]
+                                smtp_port = st.secrets["smtp"]["port"]
+
+                                msg = MIMEMultipart()
+                                msg['From'] = smtp_user
+                                msg['To'] = "manishtripathi.irman@gmail.com"
+                                msg['Subject'] = f"Nutrition Summary Report ({start_date} to {end_date})"
+                                msg.attach(MIMEText(email_body, 'plain'))
+
+                                server = smtplib.SMTP(smtp_server, smtp_port)
+                                server.starttls()
+                                server.login(smtp_user, smtp_pass)
+                                server.sendmail(smtp_user, "manishtripathi.irman@gmail.com", msg.as_string())
+                                server.quit()
+                                st.success("Report successfully sent to manishtripathi.irman@gmail.com!")
+                            else:
+                                # Fallback display if SMTP credentials are not yet added to Streamlit secrets
+                                st.success(f"Report compiled successfully for manishtripathi.irman@gmail.com ({start_date} to {end_date})!")
+                                with st.expander("View Email Content Preview"):
+                                    st.text(email_body)
+                                st.info("Note: To enable direct auto-sending via SMTP, configure your email credentials under Streamlit app Secrets.")
+                        except Exception as mail_err:
+                            st.error(f"Failed to send email: {mail_err}")
 
             if st.button("Clear Entire Log", use_container_width=True):
                 st.session_state.logged_meals = []
