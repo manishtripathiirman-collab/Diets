@@ -16,7 +16,6 @@ st.markdown("""
         padding-bottom: 2rem;
         max-width: 700px;
     }
-    /* Sleek subtle background watermark header effect */
     .watermark-banner {
         position: relative;
         background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1000&q=80");
@@ -38,7 +37,6 @@ st.markdown("""
         opacity: 0.9;
         margin: 0;
     }
-    /* Force metrics side-by-side cleanly on mobile screens */
     div[data-testid="column"] {
         float: left !important;
         width: 23% !important;
@@ -78,7 +76,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
 
 @st.cache_data(ttl=10)
@@ -98,9 +95,11 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # Initialize session state for tracking logged meals and confirmation flags
+        # Initialize session state variables
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
+        if 'last_added_message' not in st.session_state:
+            st.session_state.last_added_message = None
         if 'confirm_delete_idx' not in st.session_state:
             st.session_state.confirm_delete_idx = None
         if 'confirm_clear_all' not in st.session_state:
@@ -141,7 +140,6 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics strictly side-by-side
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
@@ -161,7 +159,13 @@ try:
                     "metrics": {col: recipe_row[col] for col in metric_cols}
                 }
                 st.session_state.logged_meals.append(meal_data_to_log)
-                st.success(f"Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
+                # Store persistent success message in session state so it doesn't vanish on rerun
+                st.session_state.last_added_message = f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!"
+                st.rerun()
+
+            # Display persistent success banner if set
+            if st.session_state.last_added_message:
+                st.success(st.session_state.last_added_message)
 
             st.divider()
 
@@ -217,6 +221,8 @@ try:
                 with col_item_btn:
                     if st.button("🗑️ Delete", key=f"del_btn_{idx}", use_container_width=True):
                         st.session_state.confirm_delete_idx = idx
+                        # Clear success message when taking action
+                        st.session_state.last_added_message = None
 
                 if st.session_state.confirm_delete_idx == idx:
                     st.warning(f"Are you sure you want to delete **{meal['recipe']}** ({meal['date']})?")
@@ -224,6 +230,7 @@ try:
                     if c_yes.button("Yes, Delete", key=f"yes_del_{idx}", use_container_width=True):
                         st.session_state.logged_meals.pop(idx)
                         st.session_state.confirm_delete_idx = None
+                        st.session_state.last_added_message = None
                         st.rerun()
                     if c_no.button("Cancel", key=f"no_del_{idx}", use_container_width=True):
                         st.session_state.confirm_delete_idx = None
@@ -274,6 +281,7 @@ try:
             if not st.session_state.confirm_clear_all:
                 if st.button("Clear Entire Log", use_container_width=True):
                     st.session_state.confirm_clear_all = True
+                    st.session_state.last_added_message = None
                     st.rerun()
             else:
                 st.warning("Are you sure you want to clear your entire log?")
@@ -281,6 +289,7 @@ try:
                 if cc_yes.button("Yes, Clear All", use_container_width=True):
                     st.session_state.logged_meals = []
                     st.session_state.confirm_clear_all = False
+                    st.session_state.last_added_message = None
                     st.rerun()
                 if cc_no.button("Cancel", use_container_width=True):
                     st.session_state.confirm_clear_all = False
