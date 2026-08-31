@@ -5,33 +5,43 @@ from datetime import datetime
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS to force side-by-side metrics and prevent mobile vertical stacking
+# Custom CSS to strictly enforce horizontal 4-column layout on mobile devices
 st.markdown("""
     <style>
     .block-container {
         padding-top: 1.5rem;
         padding-bottom: 2rem;
     }
-    /* Force columns to stay side-by-side and fit compactly on mobile screens */
-    [data-testid="column"] {
-        width: calc(25% - 0.5rem) !important;
-        flex: 1 1 calc(25% - 0.5rem) !important;
-        min-width: 70px !important;
+    /* Force Streamlit columns to sit side-by-side even on small phone screens */
+    div[data-testid="column"] {
+        float: left !important;
+        width: 23% !important;
+        flex: 1 1 23% !important;
+        min-width: 0px !important;
+        margin-right: 2% !important;
     }
-    /* Style metrics into clean mini-cards */
+    div[data-testid="column"]:last-child {
+        margin-right: 0 !important;
+    }
+    /* Clear floats after columns */
+    .row-widget.stHorizontal {
+        display: flex !important;
+        flex-direction: row !important;
+    }
+    /* Style metrics into compact cards */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.08);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 6px 4px;
-        border-radius: 8px;
+        padding: 4px 2px;
+        border-radius: 6px;
         text-align: center;
     }
     div[data-testid="stMetric"] label {
-        font-size: 11px !important;
+        font-size: 10px !important;
         font-weight: 600;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 16px !important;
+        font-size: 14px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -103,13 +113,14 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics side-by-side using st.columns (forced via custom CSS)
+            # Render numeric metrics strictly side-by-side
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
                     val = recipe_row[col]
                     if pd.notna(val) and str(val).strip() != "":
                         cols[i].metric(label=col, value=str(val))
+                st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
                 st.markdown("")
 
             # Button to log this meal to daily tracker
@@ -173,12 +184,14 @@ try:
 
             st.subheader("🎯 Total Nutrition Summary")
             
-            # Display total summary side-by-side using columns
+            # Display total summary strictly side-by-side
             sum_cols = st.columns(4)
             sum_cols[0].metric("🔥 Calories", f"{total_calories:.0f}")
             sum_cols[1].metric("💪 Protein", f"{total_protein:.1f}g")
             sum_cols[2].metric("🌾 Carbs", f"{total_carbs:.1f}g")
             sum_cols[3].metric("🥑 Fats", f"{total_fats:.1f}g")
+            st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
+            st.markdown("")
 
             if st.button("Clear Entire Log", use_container_width=True):
                 st.session_state.logged_meals = []
