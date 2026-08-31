@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS targeting Streamlit columns explicitly for mobile screens to force horizontal row placement
+# Custom CSS with Flexbox layout to guarantee 4 clean, side-by-side metric boxes on mobile without overflowing
 st.markdown("""
     <style>
     .block-container {
@@ -29,48 +29,46 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
     .watermark-banner h1 {
-        font-size: 22px !important;
+        font-size: 20px !important;
         font-weight: 700;
         margin-bottom: 4px;
     }
     .watermark-banner p {
-        font-size: 12px;
+        font-size: 11px;
         opacity: 0.9;
         margin: 0;
     }
     
-    /* FORCE MOBILE COLUMNS TO STAY HORIZONTAL (SIDE-BY-SIDE) */
-    @media (max-width: 768px) {
-        [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-        }
-        [data-testid="column"] {
-            flex: 1 1 0% !important;
-            min-width: 0 !important;
-            width: auto !important;
-            margin-right: 4px !important;
-        }
-        [data-testid="column"]:last-child {
-            margin-right: 0 !important;
-        }
+    /* Robust Flexbox fix for 4 side-by-side columns on mobile */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+    }
+    [data-testid="column"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        width: 25% !important;
     }
 
-    /* Style metric cards with right-aligned numbers */
+    /* Compact metric box styling for mobile screens */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.05);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 6px 8px;
+        padding: 4px 6px !important;
         border-radius: 8px;
         text-align: left;
     }
     div[data-testid="stMetric"] label {
-        font-size: 11px !important;
+        font-size: 10px !important;
         font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 15px !important;
+        font-size: 13px !important;
         font-weight: 600;
         text-align: right !important;
     }
@@ -147,7 +145,7 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics strictly side-by-side on all screens (mobile & web)
+            # Render numeric metrics strictly side-by-side in 4 columns
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
