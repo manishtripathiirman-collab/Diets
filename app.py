@@ -47,7 +47,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🥗 Daily Meal Planner & Nutrition Tracker")
-st.write("Select your meals below, track your daily nutrition, and email reports to `manishtripathi.irman@gmail.com`.")
+st.write("Select your meals below, track your nutrition over custom date ranges, and email reports to `manishtripathi.irman@gmail.com`.")
 
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
@@ -69,9 +69,13 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # Initialize session state for tracking logged meals with timestamps
+        # Initialize session state for tracking logged meals and delete confirmation flags
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
+        if 'confirm_delete_idx' not in st.session_state:
+            st.session_state.confirm_delete_idx = None
+        if 'confirm_clear_all' not in st.session_state:
+            st.session_state.confirm_clear_all = False
 
         # 1. Horizontal radio buttons for standard meal categories
         meal_category = st.radio(
@@ -117,15 +121,18 @@ try:
                 st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
                 st.markdown("")
 
-            if st.button("➕ Add to Today's Food Log", type="primary", use_container_width=True):
+            # Allow picking a specific date when logging the meal
+            log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
+
+            if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
                 meal_data_to_log = {
-                    "date": date.today(),
+                    "date": log_date,
                     "category": meal_category,
                     "recipe": recipe_row[recipe_name_col],
                     "metrics": {col: recipe_row[col] for col in metric_cols}
                 }
                 st.session_state.logged_meals.append(meal_data_to_log)
-                st.success(f"Added **{recipe_row[recipe_name_col]}** to your daily tracker!")
+                st.success(f"Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
 
             st.divider()
 
@@ -136,94 +143,82 @@ try:
                     st.write(val)
                     st.markdown("")
 
-        # --- TODAY'S INTAKE TRACKER SECTION ---
+        # --- NUTRITION TRACKER & DATE RANGE SUMMARY SECTION ---
         st.markdown("---")
-        st.header("📊 Today's Intake Tracker")
-        st.caption(f"Date: {datetime.now().strftime('%d %b %Y')}")
+        st.header("📊 Nutrition Log & Date Range Tracker")
         
         if not st.session_state.logged_meals:
-            st.info("No meals logged yet today. Click 'Add to Today's Food Log' on any recipe above.")
+            st.info("No meals logged yet. Add meals above to start tracking.")
         else:
-            total_calories = 0.0
-            total_protein = 0.0
-            total_carbs = 0.0
-            total_fats = 0.0
+            # Date Range Filter for Summary
+            st.markdown("#### 🔍 Select Date Range for Summary")
+            col_d1, col_d2 = st.columns(2)
+            range_start = col_d1.date_input("From Date", value=date.today(), key="summary_start")
+            range_end = col_d2.date_input("To Date", value=date.today(), key="summary_end")
 
-            for idx, meal in enumerate(st.session_state.logged_meals):
-                col_item_info, col_item_btn = st.columns([3, 1])
-                with col_item_info:
-                    st.markdown(f"**{idx+1}. {meal['recipe']}** *({meal['category']})* - {meal['date']}")
-                with col_item_btn:
-                    if st.button("❌ Remove", key=f"remove_{idx}", use_container_width=True):
-                        st.session_state.logged_meals.pop(idx)
-                        st.rerun()
-                
-                for m_key, m_val in meal['metrics'].items():
+            # Filter logs based on date range selection
+            range_filtered_logs = [m for m in st.session_state.logged_meals if range_start <= m['date'] <= range_end]
+
+            rc_calories, rc_protein, rc_carbs, rc_fats = 0.0, 0.0, 0.0, 0.0
+            for m in range_filtered_logs:
+                for m_key, m_val in m['metrics'].items():
                     try:
-                        val_num = float(str(m_val).replace("g", "").strip())
-                        m_lower = m_key.lower()
-                        if "calorie" in m_lower or "kcal" in m_lower:
-                            total_calories += val_num
-                        elif "protein" in m_lower:
-                            total_protein += val_num
-                        elif "carb" in m_lower:
-                            total_carbs += val_num
-                        elif "fat" in m_lower:
-                            total_fats += val_num
+                        v = float(str(m_val).replace("g", "").strip())
+                        kl = m_key.lower()
+                        if "calorie" in kl or "kcal" in kl: rc_calories += v
+                        elif "protein" in kl: rc_protein += v
+                        elif "carb" in kl: rc_carbs += v
+                        elif "fat" in kl: rc_fats += v
                     except:
                         pass
-                st.markdown("---")
 
-            st.subheader("🎯 Total Nutrition Summary")
-            
+            st.markdown(f"**Summary from {range_start} to {range_end}** ({len(range_filtered_logs)} items logged):")
             sum_cols = st.columns(4)
-            sum_cols[0].metric("🔥 Calories", f"{total_calories:.0f}")
-            sum_cols[1].metric("💪 Protein", f"{total_protein:.1f}g")
-            sum_cols[2].metric("🌾 Carbs", f"{total_carbs:.1f}g")
-            sum_cols[3].metric("🥑 Fats", f"{total_fats:.1f}g")
+            sum_cols[0].metric("🔥 Calories", f"{rc_calories:.0f}")
+            sum_cols[1].metric("💪 Protein", f"{rc_protein:.1f}g")
+            sum_cols[2].metric("🌾 Carbs", f"{rc_carbs:.1f}g")
+            sum_cols[3].metric("🥑 Fats", f"{rc_fats:.1f}g")
             st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
             st.markdown("")
 
-            # --- EMAIL REPORT SECTION WITH DATE RANGE ---
-            st.subheader("📧 Email Nutrition Report")
+            # --- MANAGE LOGGED ITEMS WITH DELETE CONFIRMATION PROMPT ---
+            st.markdown("#### 📝 All Logged Meals")
+            for idx, meal in enumerate(st.session_state.logged_meals):
+                col_item_info, col_item_btn = st.columns([3, 1])
+                with col_item_info:
+                    st.markdown(f"**{idx+1}. {meal['recipe']}** *({meal['category']})* <br><small>📅 {meal['date']}</small>", unsafe_allow_html=True)
+                with col_item_btn:
+                    if st.button("🗑️ Delete", key=f"del_btn_{idx}", use_container_width=True):
+                        st.session_state.confirm_delete_idx = idx
+
+                # Prompt confirmation when delete is clicked
+                if st.session_state.confirm_delete_idx == idx:
+                    st.warning(f"Are you sure you want to delete **{meal['recipe']}** ({meal['date']})?")
+                    c_yes, c_no = st.columns(2)
+                    if c_yes.button("Yes, Delete", key=f"yes_del_{idx}", use_container_width=True):
+                        st.session_state.logged_meals.pop(idx)
+                        st.session_state.confirm_delete_idx = None
+                        st.rerun()
+                    if c_no.button("Cancel", key=f"no_del_{idx}", use_container_width=True):
+                        st.session_state.confirm_delete_idx = None
+                        st.rerun()
+                st.markdown("---")
+
+            # --- EMAIL REPORT SECTION ---
+            st.subheader("📧 Email Range Summary Report")
             with st.form("email_form"):
-                st.write("Select date range to include in the summary report sent to **manishtripathi.irman@gmail.com**:")
-                
-                col_d1, col_d2 = st.columns(2)
-                start_date = col_d1.date_input("Start Date", value=date.today())
-                end_date = col_d2.date_input("End Date", value=date.today())
+                st.write(f"Send the summary report for the selected date range (**{range_start} to {range_end}**) to **manishtripathi.irman@gmail.com**:")
                 
                 submit_email = st.form_submit_button("Send Summary to Email", use_container_width=True)
                 
                 if submit_email:
-                    # Filter logged meals by selected date range
-                    filtered_logs = [m for m in st.session_state.logged_meals if start_date <= m['date'] <= end_date]
-                    
-                    if not filtered_logs:
-                        st.warning("No logged meals found within the selected date range.")
+                    if not range_filtered_logs:
+                        st.warning("No logged meals found within the selected date range to email.")
                     else:
-                        # Calculate totals for the date range
-                        r_calories, r_protein, r_carbs, r_fats = 0.0, 0.0, 0.0, 0.0
-                        report_lines = []
-                        
-                        for m in filtered_logs:
-                            report_lines.append(f"- {m['date']} | {m['category']}: {m['recipe']}")
-                            for m_key, m_val in m['metrics'].items():
-                                try:
-                                    v = float(str(m_val).replace("g", "").strip())
-                                    kl = m_key.lower()
-                                    if "calorie" in kl or "kcal" in kl: r_calories += v
-                                    elif "protein" in kl: r_protein += v
-                                    elif "carb" in kl: r_carbs += v
-                                    elif "fat" in kl: r_fats += v
-                                except:
-                                    pass
+                        report_lines = [f"- {m['date']} | {m['category']}: {m['recipe']}" for m in range_filtered_logs]
+                        email_body = f"""Hello Manish,\n\nHere is your nutrition summary report from {range_start} to {range_end}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals for Range:\n- Calories: {rc_calories:.0f} kcal\n- Protein: {rc_protein:.1f} g\n- Carbs: {rc_carbs:.1f} g\n- Fats: {rc_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
 
-                        email_body = f"""Hello Manish,\n\nHere is your nutrition summary report from {start_date} to {end_date}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals:\n- Calories: {r_calories:.0f} kcal\n- Protein: {r_protein:.1f} g\n- Carbs: {r_carbs:.1f} g\n- Fats: {r_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
-
-                        # Attempt to send email via Streamlit Secrets SMTP configuration or notify setup
                         try:
-                            # Check if SMTP secrets exist, otherwise display ready-to-copy format / simulation
                             if "smtp" in st.secrets:
                                 smtp_user = st.secrets["smtp"]["user"]
                                 smtp_pass = st.secrets["smtp"]["password"]
@@ -233,7 +228,7 @@ try:
                                 msg = MIMEMultipart()
                                 msg['From'] = smtp_user
                                 msg['To'] = "manishtripathi.irman@gmail.com"
-                                msg['Subject'] = f"Nutrition Summary Report ({start_date} to {end_date})"
+                                msg['Subject'] = f"Nutrition Range Report ({range_start} to {range_end})"
                                 msg.attach(MIMEText(email_body, 'plain'))
 
                                 server = smtplib.SMTP(smtp_server, smtp_port)
@@ -243,17 +238,28 @@ try:
                                 server.quit()
                                 st.success("Report successfully sent to manishtripathi.irman@gmail.com!")
                             else:
-                                # Fallback display if SMTP credentials are not yet added to Streamlit secrets
-                                st.success(f"Report compiled successfully for manishtripathi.irman@gmail.com ({start_date} to {end_date})!")
+                                st.success(f"Report compiled successfully for manishtripathi.irman@gmail.com ({range_start} to {range_end})!")
                                 with st.expander("View Email Content Preview"):
                                     st.text(email_body)
                                 st.info("Note: To enable direct auto-sending via SMTP, configure your email credentials under Streamlit app Secrets.")
                         except Exception as mail_err:
                             st.error(f"Failed to send email: {mail_err}")
 
-            if st.button("Clear Entire Log", use_container_width=True):
-                st.session_state.logged_meals = []
-                st.rerun()
+            # Clear Entire Log with confirmation prompt
+            if not st.session_state.confirm_clear_all:
+                if st.button("Clear Entire Log", use_container_width=True):
+                    st.session_state.confirm_clear_all = True
+                    st.rerun()
+            else:
+                st.warning("Are you sure you want to clear your entire log?")
+                cc_yes, cc_no = st.columns(2)
+                if cc_yes.button("Yes, Clear All", use_container_width=True):
+                    st.session_state.logged_meals = []
+                    st.session_state.confirm_clear_all = False
+                    st.rerun()
+                if cc_no.button("Cancel", use_container_width=True):
+                    st.session_state.confirm_clear_all = False
+                    st.rerun()
 
 except Exception as e:
     st.error(f"Error loading Google Sheet: {e}")
