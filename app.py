@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS for polished mobile-first UI, cards, and image styling
+# Custom CSS for compact mobile UI, watermark background banner, and side-by-side metrics
 st.markdown("""
     <style>
     .block-container {
@@ -16,13 +16,27 @@ st.markdown("""
         padding-bottom: 2rem;
         max-width: 700px;
     }
-    /* Mobile-friendly banner image styling */
-    .hero-img {
+    /* Sleek subtle background watermark header effect */
+    .watermark-banner {
+        position: relative;
+        background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1000&q=80");
+        background-size: cover;
+        background-position: center;
+        padding: 24px 16px;
         border-radius: 12px;
-        margin-bottom: 1rem;
-        object-fit: cover;
-        max-height: 220px;
-        width: 100%;
+        color: white;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+    .watermark-banner h1 {
+        font-size: 22px !important;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .watermark-banner p {
+        font-size: 12px;
+        opacity: 0.9;
+        margin: 0;
     }
     /* Force metrics side-by-side cleanly on mobile screens */
     div[data-testid="column"] {
@@ -53,21 +67,16 @@ st.markdown("""
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
         font-size: 14px !important;
     }
-    /* Section card container styling */
-    .recipe-card {
-        background-color: rgba(128, 128, 128, 0.04);
-        padding: 16px;
-        border-radius: 12px;
-        border: 1px solid rgba(128, 128, 128, 0.15);
-        margin-bottom: 1rem;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# App Header with appetizing header image
-st.image("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1000&q=80", use_container_width=True)
-st.title("🥗 Daily Meal Planner & Nutrition Tracker")
-st.write("Select your meals, track your custom date-range nutrition, and email reports to `manishtripathi.irman@gmail.com`.")
+# Compact Watermark Banner Header
+st.markdown("""
+    <div class="watermark-banner">
+        <h1>🥗 Daily Meal Planner & Nutrition Tracker</h1>
+        <p>Track composition, dates, and email range summaries to manishtripathi.irman@gmail.com</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
@@ -89,7 +98,7 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # Initialize session state for tracking logged meals and delete confirmation flags
+        # Initialize session state for tracking logged meals and confirmation flags
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
         if 'confirm_delete_idx' not in st.session_state:
@@ -117,8 +126,6 @@ try:
             recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
 
             st.divider()
-            
-            # Recipe Card Display Wrapper
             st.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
 
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
@@ -144,7 +151,6 @@ try:
                 st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
                 st.markdown("")
 
-            # Allow picking a specific date when logging the meal
             log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
 
             if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
@@ -173,13 +179,11 @@ try:
         if not st.session_state.logged_meals:
             st.info("No meals logged yet. Add meals above to start tracking.")
         else:
-            # Date Range Filter for Summary
             st.markdown("#### 🔍 Select Date Range for Summary")
             col_d1, col_d2 = st.columns(2)
             range_start = col_d1.date_input("From Date", value=date.today(), key="summary_start")
             range_end = col_d2.date_input("To Date", value=date.today(), key="summary_end")
 
-            # Filter logs based on date range selection
             range_filtered_logs = [m for m in st.session_state.logged_meals if range_start <= m['date'] <= range_end]
 
             rc_calories, rc_protein, rc_carbs, rc_fats = 0.0, 0.0, 0.0, 0.0
@@ -214,7 +218,6 @@ try:
                     if st.button("🗑️ Delete", key=f"del_btn_{idx}", use_container_width=True):
                         st.session_state.confirm_delete_idx = idx
 
-                # Prompt confirmation when delete is clicked
                 if st.session_state.confirm_delete_idx == idx:
                     st.warning(f"Are you sure you want to delete **{meal['recipe']}** ({meal['date']})?")
                     c_yes, c_no = st.columns(2)
@@ -230,7 +233,7 @@ try:
             # --- EMAIL REPORT SECTION ---
             st.subheader("📧 Email Range Summary Report")
             with st.form("email_form"):
-                st.write(f"Send the summary report for the selected date range (**{range_start} to {range_end}**) to **manishtripathi.irman@gmail.com**:")
+                st.write(f"Send summary report (**{range_start} to {range_end}**) to **manishtripathi.irman@gmail.com**:")
                 
                 submit_email = st.form_submit_button("Send Summary to Email", use_container_width=True)
                 
@@ -268,7 +271,6 @@ try:
                         except Exception as mail_err:
                             st.error(f"Failed to send email: {mail_err}")
 
-            # Clear Entire Log with confirmation prompt
             if not st.session_state.confirm_clear_all:
                 if st.button("Clear Entire Log", use_container_width=True):
                     st.session_state.confirm_clear_all = True
