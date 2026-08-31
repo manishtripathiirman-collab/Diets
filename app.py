@@ -5,28 +5,33 @@ from datetime import datetime
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS to improve mobile layout, card containers, and metric alignment
+# Custom CSS to force side-by-side metrics and prevent mobile vertical stacking
 st.markdown("""
     <style>
-    /* Improve mobile readability and spacing */
     .block-container {
         padding-top: 1.5rem;
         padding-bottom: 2rem;
     }
-    /* Style metrics into clean cards */
+    /* Force columns to stay side-by-side and fit compactly on mobile screens */
+    [data-testid="column"] {
+        width: calc(25% - 0.5rem) !important;
+        flex: 1 1 calc(25% - 0.5rem) !important;
+        min-width: 70px !important;
+    }
+    /* Style metrics into clean mini-cards */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.08);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 10px 14px;
-        border-radius: 10px;
+        padding: 6px 4px;
+        border-radius: 8px;
         text-align: center;
     }
     div[data-testid="stMetric"] label {
-        font-size: 13px !important;
+        font-size: 11px !important;
         font-weight: 600;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 20px !important;
+        font-size: 16px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -98,7 +103,7 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics in a compact 2x2 grid on mobile or 4 columns on desktop using st.columns
+            # Render numeric metrics side-by-side using st.columns (forced via custom CSS)
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
@@ -127,7 +132,7 @@ try:
                     st.write(val)
                     st.markdown("")
 
-        # --- TODAY'S INTAKE TRACKER SECTION (Moved below recipe view for perfect mobile flow) ---
+        # --- TODAY'S INTAKE TRACKER SECTION ---
         st.markdown("---")
         st.header("📊 Today's Intake Tracker")
         st.caption(f"Date: {datetime.now().strftime('%d %b %Y')}")
@@ -168,7 +173,7 @@ try:
 
             st.subheader("🎯 Total Nutrition Summary")
             
-            # Display total summary cleanly in a responsive grid
+            # Display total summary side-by-side using columns
             sum_cols = st.columns(4)
             sum_cols[0].metric("🔥 Calories", f"{total_calories:.0f}")
             sum_cols[1].metric("💪 Protein", f"{total_protein:.1f}g")
