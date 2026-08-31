@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS for compact mobile UI, watermark background banner, and side-by-side metrics
+# Custom CSS for compact mobile UI, watermark background banner, and aligned metric cards
 st.markdown("""
     <style>
     .block-container {
@@ -38,6 +38,7 @@ st.markdown("""
         opacity: 0.9;
         margin: 0;
     }
+    /* Force metrics side-by-side cleanly and compact on mobile screens */
     div[data-testid="column"] {
         float: left !important;
         width: 23% !important;
@@ -52,19 +53,23 @@ st.markdown("""
         display: flex !important;
         flex-direction: row !important;
     }
+    /* Style metrics with right-aligned values just like your screenshot */
     div[data-testid="stMetric"] {
-        background-color: rgba(128, 128, 128, 0.08);
+        background-color: rgba(128, 128, 128, 0.05);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 4px 2px;
+        padding: 8px 10px;
         border-radius: 8px;
-        text-align: center;
+        text-align: left;
     }
     div[data-testid="stMetric"] label {
-        font-size: 10px !important;
-        font-weight: 600;
+        font-size: 12px !important;
+        font-weight: 500;
+        color: inherit;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 14px !important;
+        font-size: 18px !important;
+        font-weight: 600;
+        text-align: right !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -139,6 +144,7 @@ try:
                 else:
                     text_cols.append(col)
 
+            # Render numeric metrics strictly side-by-side with right-aligned values
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
@@ -151,7 +157,6 @@ try:
             log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
 
             if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
-                # Restrict future date selection
                 if log_date > date.today():
                     st.error("Abe Pagle Time Travel kar raha kya?")
                 else:
@@ -163,7 +168,6 @@ try:
                     }
                     st.session_state.logged_meals.append(meal_data_to_log)
                     
-                    # Show temporary success alert that vanishes automatically after 2 seconds
                     temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
                     time.sleep(2)
                     temp_alert.empty()
