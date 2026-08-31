@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS for compact mobile UI, watermark background banner, and aligned metric cards
+# Custom CSS with Flexbox layout to guarantee 4 clean, side-by-side metric boxes on mobile without overflowing
 st.markdown("""
     <style>
     .block-container {
@@ -29,45 +29,46 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
     .watermark-banner h1 {
-        font-size: 22px !important;
+        font-size: 20px !important;
         font-weight: 700;
         margin-bottom: 4px;
     }
     .watermark-banner p {
-        font-size: 12px;
+        font-size: 11px;
         opacity: 0.9;
         margin: 0;
     }
-    /* Force metrics side-by-side cleanly and compact on mobile screens */
-    div[data-testid="column"] {
-        float: left !important;
-        width: 23% !important;
-        flex: 1 1 23% !important;
-        min-width: 0px !important;
-        margin-right: 2% !important;
-    }
-    div[data-testid="column"]:last-child {
-        margin-right: 0 !important;
-    }
-    .row-widget.stHorizontal {
+    
+    /* Robust Flexbox fix for 4 side-by-side columns on mobile */
+    [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
     }
-    /* Style metrics with right-aligned values just like your screenshot */
+    [data-testid="column"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        width: 25% !important;
+    }
+
+    /* Compact metric box styling for mobile screens */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.05);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 8px 10px;
+        padding: 4px 6px !important;
         border-radius: 8px;
         text-align: left;
     }
     div[data-testid="stMetric"] label {
-        font-size: 12px !important;
+        font-size: 10px !important;
         font-weight: 500;
-        color: inherit;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 18px !important;
+        font-size: 13px !important;
         font-weight: 600;
         text-align: right !important;
     }
@@ -78,7 +79,7 @@ st.markdown("""
 st.markdown("""
     <div class="watermark-banner">
         <h1>🥗 Daily Meal Planner & Nutrition Tracker</h1>
-        <p>Track composition, dates, and email range summaries to manishtripathi.irman@gmail.com</p>
+        <p>Track composition, portions, goals, favorites, and email summaries to manishtripathi.irman@gmail.com</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -104,10 +105,51 @@ try:
         # Initialize session state variables
         if 'logged_meals' not in st.session_state:
             st.session_state.logged_meals = []
+        if 'favorites' not in st.session_state:
+            st.session_state.favorites = []
         if 'confirm_delete_idx' not in st.session_state:
             st.session_state.confirm_delete_idx = None
         if 'confirm_clear_all' not in st.session_state:
             st.session_state.confirm_clear_all = False
+
+        # --- SIDEBAR GOALS & CONFIGURATION ---
+        with st.sidebar:
+            st.header("🎯 Daily Targets")
+            target_calories = st.number_input("Calorie Goal (kcal)", value=2000, step=50)
+            target_protein = st.number_input("Protein Goal (g)", value=130.0, step=5.0)
+            target_carbs = st.number_input("Carbs Goal (g)", value=200.0, step=5.0)
+            target_fats = st.number_input("Fats Goal (g)", value=60.0, step=5.0)
+            
+            st.divider()
+            st.markdown("### ⭐ Quick-Add Favorites")
+            if not st.session_state.favorites:
+                st.info("No favorites added yet. Click '⭐ Add to Favorites' on any recipe card below.")
+            else:
+                for fav in st.session_state.favorites:
+                    col_fav_name, col_fav_btn = st.columns([2, 1])
+                    col_fav_name.write(f"**{fav['recipe']}**")
+                    if col_fav_btn.button("Log", key=f"fav_log_{fav['recipe']}"):
+                        fav_row = df[df[recipe_name_col] == fav['recipe']]
+                        if not fav_row.empty:
+                            r_data = fav_row.iloc[0]
+                            parsed_metrics = {}
+                            for col in df.columns:
+                                if col.lower() in ["calories", "calorie", "kcal", "protein (g)", "protein", "carbs (g)", "carbs", "fats (g)", "fats"]:
+                                    val = r_data[col]
+                                    if pd.notna(val) and str(val).strip() != "":
+                                        try:
+                                            parsed_metrics[col] = float(str(val).replace("g", "").strip())
+                                        except:
+                                            pass
+                            st.session_state.logged_meals.append({
+                                "date": date.today(),
+                                "category": r_data[meal_type_col],
+                                "recipe": r_data[recipe_name_col],
+                                "metrics": parsed_metrics
+                            })
+                            st.success(f"Logged {fav['recipe']}!")
+                            time.sleep(1)
+                            st.rerun()
 
         # 1. Horizontal radio buttons for standard meal categories
         meal_category = st.radio(
@@ -121,66 +163,98 @@ try:
         if filtered_df.empty:
             st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
         else:
-            st.markdown(f"### Select an option for {meal_category}")
-            
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
-            selected_recipe = st.selectbox(f"Available Options:", recipe_list, key=f"select_{meal_category}")
+            
+            # Feature 4: Keyword Search Bar alongside dropdown
+            st.markdown(f"### Select an option for {meal_category}")
+            search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{meal_category}")
+            
+            if search_query:
+                recipe_list = [r for r in recipe_list if search_query.lower() in r.lower()]
+                if not recipe_list:
+                    st.warning(f"No recipes match '{search_query}'.")
+            
+            if recipe_list:
+                selected_recipe = st.selectbox("Available Options:", recipe_list, key=f"select_{meal_category}")
+                recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
 
-            recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
-
-            st.divider()
-            st.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
-
-            exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
-            other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
-
-            metric_cols = []
-            text_cols = []
-
-            for col in other_columns:
-                col_lower = col.lower()
-                if col_lower in ["calories", "calorie", "kcal", "protein (g)", "protein", "carbs (g)", "carbs", "fats (g)", "fats"]:
-                    metric_cols.append(col)
-                else:
-                    text_cols.append(col)
-
-            # Render numeric metrics strictly side-by-side with right-aligned values
-            if metric_cols:
-                cols = st.columns(len(metric_cols))
-                for i, col in enumerate(metric_cols):
-                    val = recipe_row[col]
-                    if pd.notna(val) and str(val).strip() != "":
-                        cols[i].metric(label=col, value=str(val))
-                st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
-                st.markdown("")
-
-            log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
-
-            if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
-                if log_date > date.today():
-                    st.error("Abe Pagle Time Travel kar raha kya?")
-                else:
-                    meal_data_to_log = {
-                        "date": log_date,
-                        "category": meal_category,
-                        "recipe": recipe_row[recipe_name_col],
-                        "metrics": {col: recipe_row[col] for col in metric_cols}
-                    }
-                    st.session_state.logged_meals.append(meal_data_to_log)
-                    
-                    temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
-                    time.sleep(2)
-                    temp_alert.empty()
+                st.divider()
+                
+                # Header with Favorite button toggle
+                col_title, col_fav_toggle = st.columns([3, 1])
+                col_title.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
+                
+                is_fav = any(f['recipe'] == recipe_row[recipe_name_col] for f in st.session_state.favorites)
+                fav_label = "⭐ Favorited" if is_fav else "☆ Add Favorite"
+                if col_fav_toggle.button(fav_label, key=f"fav_toggle_{selected_recipe}", use_container_width=True):
+                    if is_fav:
+                        st.session_state.favorites = [f for f in st.session_state.favorites if f['recipe'] != recipe_row[recipe_name_col]]
+                    else:
+                        st.session_state.favorites.append({"recipe": recipe_row[recipe_name_col], "category": meal_category})
                     st.rerun()
 
-            st.divider()
+                exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
+                other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
 
-            for col in text_cols:
-                val = recipe_row[col]
-                if pd.notna(val) and str(val).strip() != "":
-                    st.markdown(f"**📌 {col}**")
-                    st.write(val)
+                metric_cols = []
+                text_cols = []
+
+                for col in other_columns:
+                    col_lower = col.lower()
+                    if col_lower in ["calories", "calorie", "kcal", "protein (g)", "protein", "carbs (g)", "carbs", "fats (g)", "fats"]:
+                        metric_cols.append(col)
+                    else:
+                        text_cols.append(col)
+
+                # Feature 1: Portion Size Multiplier Slider
+                st.markdown("")
+                portion_multiplier = st.slider("🍽️ Portion Multiplier", min_value=0.5, max_value=3.0, value=1.0, step=0.25, key=f"portion_{selected_recipe}")
+
+                # Render numeric metrics scaled by portion multiplier strictly side-by-side in 4 columns
+                if metric_cols:
+                    cols = st.columns(len(metric_cols))
+                    scaled_metrics_dict = {}
+                    for i, col in enumerate(metric_cols):
+                        val = recipe_row[col]
+                        if pd.notna(val) and str(val).strip() != "":
+                            try:
+                                clean_val = float(str(val).replace("g", "").strip()) * portion_multiplier
+                                unit_suffix = "g" if "g" in str(val).lower() or col.lower() in ["protein", "carbs", "fats", "protein (g)", "carbs (g)", "fats (g)"] else ""
+                                formatted_val = f"{clean_val:.1f}{unit_suffix}" if unit_suffix else f"{clean_val:.0f}"
+                                cols[i].metric(label=f"{col} ({portion_multiplier}x)", value=formatted_val)
+                                scaled_metrics_dict[col] = clean_val
+                            except:
+                                cols[i].metric(label=col, value=str(val))
+                                scaled_metrics_dict[col] = val
                     st.markdown("")
+
+                log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
+
+                if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
+                    if log_date > date.today():
+                        st.error("Abe Pagle Time Travel kar raha kya?")
+                    else:
+                        meal_data_to_log = {
+                            "date": log_date,
+                            "category": meal_category,
+                            "recipe": f"{recipe_row[recipe_name_col]} ({portion_multiplier}x)" if portion_multiplier != 1.0 else recipe_row[recipe_name_col],
+                            "metrics": scaled_metrics_dict
+                        }
+                        st.session_state.logged_meals.append(meal_data_to_log)
+                        
+                        temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_multiplier}x) for {log_date} to your tracker!")
+                        time.sleep(2)
+                        temp_alert.empty()
+                        st.rerun()
+
+                st.divider()
+
+                for col in text_cols:
+                    val = recipe_row[col]
+                    if pd.notna(val) and str(val).strip() != "":
+                        st.markdown(f"**📌 {col}**")
+                        st.write(val)
+                        st.markdown("")
 
         # --- NUTRITION TRACKER & DATE RANGE SUMMARY SECTION ---
         st.markdown("---")
@@ -215,7 +289,53 @@ try:
             sum_cols[1].metric("💪 Protein", f"{rc_protein:.1f}g")
             sum_cols[2].metric("🌾 Carbs", f"{rc_carbs:.1f}g")
             sum_cols[3].metric("🥑 Fats", f"{rc_fats:.1f}g")
-            st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
+            st.markdown("")
+
+            # Feature 2: Daily Macro Goal Progress Bars (for today's totals)
+            today_logs = [m for m in st.session_state.logged_meals if m['date'] == date.today()]
+            t_calories, t_protein, t_carbs, t_fats = 0.0, 0.0, 0.0, 0.0
+            for m in today_logs:
+                for m_key, m_val in m['metrics'].items():
+                    try:
+                        v = float(str(m_val).replace("g", "").strip())
+                        kl = m_key.lower()
+                        if "calorie" in kl or "kcal" in kl: t_calories += v
+                        elif "protein" in kl: t_protein += v
+                        elif "carb" in kl: t_carbs += v
+                        elif "fat" in kl: t_fats += v
+                    except:
+                        pass
+
+            st.markdown("#### 🎯 Today's Goal Progress")
+            st.markdown(f"**Calories:** {t_calories:.0f} / {target_calories} kcal")
+            st.progress(min(t_calories / target_calories, 1.0) if target_calories > 0 else 0.0)
+            
+            st.markdown(f"**Protein:** {t_protein:.1f} / {target_protein}g")
+            st.progress(min(t_protein / target_protein, 1.0) if target_protein > 0 else 0.0)
+            
+            st.markdown(f"**Carbs:** {t_carbs:.1f} / {target_carbs}g")
+            st.progress(min(t_carbs / target_carbs, 1.0) if target_carbs > 0 else 0.0)
+            
+            st.markdown(f"**Fats:** {t_fats:.1f} / {target_fats}g")
+            st.progress(min(t_fats / target_fats, 1.0) if target_fats > 0 else 0.0)
+            st.markdown("")
+
+            # Feature 3: Log Export to CSV
+            df_export = pd.DataFrame([{
+                "Date": m['date'],
+                "Category": m['category'],
+                "Recipe": m['recipe'],
+                **{k: v for k, v in m['metrics'].items()}
+            } for m in st.session_state.logged_meals])
+            
+            csv_data = df_export.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Complete Log as CSV",
+                data=csv_data,
+                file_name=f"nutrition_log_{date.today()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
             st.markdown("")
 
             # --- MANAGE LOGGED ITEMS WITH DELETE CONFIRMATION PROMPT ---
@@ -265,7 +385,7 @@ try:
                                 msg['From'] = smtp_user
                                 msg['To'] = "manishtripathi.irman@gmail.com"
                                 msg['Subject'] = f"Nutrition Range Report ({range_start} to {range_end})"
-                                msg.attach(MIMEText(email_body, 'plain'))
+                                msg['attach'](MIMEText(email_body, 'plain'))
 
                                 server = smtplib.SMTP(smtp_server, smtp_port)
                                 server.starttls()
