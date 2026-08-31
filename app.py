@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
 st.title("🥗 Daily Meal Planner & Nutrition Tracker")
-st.write("Select a meal time below to explore recipes, calorie intake, and macronutrient composition.")
+st.write("Select a meal time below to explore recipes, nutrition details, and health benefits.")
 
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
@@ -20,32 +20,31 @@ def load_meal_data():
 try:
     df = load_meal_data()
 
-    # Match MealType column dynamically (case-insensitive)
+    # Identify core columns dynamically
     meal_type_col = next((c for c in df.columns if c.lower() in ["mealtype", "meal_type", "meal type", "meal"]), None)
     recipe_name_col = next((c for c in df.columns if c.lower() in ["recipename", "recipe_name", "recipe name", "recipe", "item", "dish"]), None)
 
     if not meal_type_col or not recipe_name_col:
-        st.error("Could not find standard columns. Please ensure your sheet has 'MealType' and 'RecipeName' column headers.")
+        st.error("Could not find standard columns. Please ensure your sheet has 'Meal Type' and 'Recipe Name' column headers.")
         st.write("Current columns detected:", list(df.columns))
     else:
-        # 1. Main Category: Breakfast, Lunch, Dinner
-        meal_category = st.radio(
-            "Choose Meal Time:",
-            ["Breakfast", "Lunch", "Dinner"],
-            horizontal=True
-        )
+        # 1. Main Category: Filter unique meal types available in the sheet
+        available_meal_types = df[meal_type_col].dropna().astype(str).unique().tolist()
+        
+        # Let users select from the categories found in the sheet
+        meal_category = st.selectbox("Choose Meal Category:", available_meal_types)
 
         # Filter database by selected meal type
         filtered_df = df[df[meal_type_col].astype(str).str.strip().str.lower() == meal_category.lower()]
 
         if filtered_df.empty:
-            st.info(f"No recipes found for **{meal_category}** yet. Add rows in your Google Sheet under MealType '{meal_category}'!")
+            st.info(f"No recipes found for **{meal_category}** yet.")
         else:
             st.markdown(f"### Select an option for {meal_category}")
             
             # 2. Recipe Option Selector
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
-            selected_recipe = st.selectbox(f"Available {meal_category} Options:", recipe_list)
+            selected_recipe = st.selectbox(f"Available Options:", recipe_list)
 
             # Get the row details for the selected recipe
             recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
@@ -53,32 +52,25 @@ try:
             st.divider()
             st.header(f"🍽️ {recipe_row[recipe_name_col]}")
 
-            # 3. Dynamic Nutrition & Calorie Metrics
-            cal_col = next((c for c in df.columns if "calorie" in c.lower() or "kcal" in c.lower()), None)
-            protein_col = next((c for c in df.columns if "protein" in c.lower()), None)
-            carbs_col = next((c for c in df.columns if "carb" in c.lower()), None)
-            fat_col = next((c for c in df.columns if "fat" in c.lower()), None)
-
-            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            if cal_col:
-                m_col1.metric("🔥 Calories", f"{recipe_row[cal_col]} kcal")
-            if protein_col:
-                m_col2.metric("💪 Protein", f"{recipe_row[protein_col]} g")
-            if carbs_col:
-                m_col3.metric("🌾 Carbs", f"{recipe_row[carbs_col]} g")
-            if fat_col:
-                m_col4.metric("🥑 Fats", f"{recipe_row[fat_col]} g")
-
-            st.divider()
-
-            # 4. Recipe, Ingredients & Instructions
-            desc_col = next((c for c in df.columns if any(k in c.lower() for k in ["recipe", "ingredient", "instruction", "detail", "method", "composition"]) and c != recipe_name_col), None)
+            # 3. Dynamic Display for ALL Other Columns (Calories, Macros, Health Benefits, etc.)
+            # Exclude Meal Type and Recipe Name from this loop since they are already used above
+            exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
             
-            st.subheader("📝 Recipe Details & Instructions")
-            if desc_col and pd.notna(recipe_row[desc_col]):
-                st.write(recipe_row[desc_col])
-            else:
-                st.write("No recipe description entered for this item in the sheet.")
+            other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
+
+            for col in other_columns:
+                val = recipe_row[col]
+                if pd.notna(val) and str(val).strip() != "":
+                    # Check if the column sounds like a numeric metric (Calories, Protein, etc.)
+                    col_lower = col.lower()
+                    if any(metric in col_lower for metric in ["calorie", "kcal", "protein", "carb", "fat", "gram", "g"]):
+                        # Display metrics nicely in small info blocks
+                        st.metric(label=col, value=str(val))
+                    else:
+                        # Display text-based columns (Ingredients & Instructions, Health Benefits, etc.) as sections
+                        st.subheader(f"📌 {col}")
+                        st.write(val)
+                    st.markdown("")
 
 except Exception as e:
     st.error(f"Error loading Google Sheet: {e}")
