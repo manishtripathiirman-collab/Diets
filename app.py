@@ -151,19 +151,23 @@ try:
             log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
 
             if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
-                meal_data_to_log = {
-                    "date": log_date,
-                    "category": meal_category,
-                    "recipe": recipe_row[recipe_name_col],
-                    "metrics": {col: recipe_row[col] for col in metric_cols}
-                }
-                st.session_state.logged_meals.append(meal_data_to_log)
-                
-                # Show temporary success alert that vanishes automatically after 2 seconds
-                temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
-                time.sleep(2)
-                temp_alert.empty()
-                st.rerun()
+                # Restrict future date selection
+                if log_date > date.today():
+                    st.error("Abe Pagle Time Travel kar raha kya?")
+                else:
+                    meal_data_to_log = {
+                        "date": log_date,
+                        "category": meal_category,
+                        "recipe": recipe_row[recipe_name_col],
+                        "metrics": {col: recipe_row[col] for col in metric_cols}
+                    }
+                    st.session_state.logged_meals.append(meal_data_to_log)
+                    
+                    # Show temporary success alert that vanishes automatically after 2 seconds
+                    temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** for {log_date} to your tracker!")
+                    time.sleep(2)
+                    temp_alert.empty()
+                    st.rerun()
 
             st.divider()
 
