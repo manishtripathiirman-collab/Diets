@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS targeting Streamlit columns explicitly for mobile screens to force horizontal row placement
+# Custom CSS for compact mobile UI, watermark background banner, and aligned metric cards
 st.markdown("""
     <style>
     .block-container {
@@ -38,39 +38,36 @@ st.markdown("""
         opacity: 0.9;
         margin: 0;
     }
-    
-    /* FORCE MOBILE COLUMNS TO STAY HORIZONTAL (SIDE-BY-SIDE) */
-    @media (max-width: 768px) {
-        [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-        }
-        [data-testid="column"] {
-            flex: 1 1 0% !important;
-            min-width: 0 !important;
-            width: auto !important;
-            margin-right: 4px !important;
-        }
-        [data-testid="column"]:last-child {
-            margin-right: 0 !important;
-        }
+    /* Force metrics side-by-side cleanly and compact on mobile screens */
+    div[data-testid="column"] {
+        float: left !important;
+        width: 23% !important;
+        flex: 1 1 23% !important;
+        min-width: 0px !important;
+        margin-right: 2% !important;
     }
-
-    /* Style metric cards with right-aligned numbers */
+    div[data-testid="column"]:last-child {
+        margin-right: 0 !important;
+    }
+    .row-widget.stHorizontal {
+        display: flex !important;
+        flex-direction: row !important;
+    }
+    /* Style metrics with right-aligned values just like your screenshot */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.05);
         border: 1px solid rgba(128, 128, 128, 0.2);
-        padding: 6px 8px;
+        padding: 8px 10px;
         border-radius: 8px;
         text-align: left;
     }
     div[data-testid="stMetric"] label {
-        font-size: 11px !important;
+        font-size: 12px !important;
         font-weight: 500;
+        color: inherit;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 15px !important;
+        font-size: 18px !important;
         font-weight: 600;
         text-align: right !important;
     }
@@ -147,13 +144,14 @@ try:
                 else:
                     text_cols.append(col)
 
-            # Render numeric metrics strictly side-by-side on all screens (mobile & web)
+            # Render numeric metrics strictly side-by-side with right-aligned values
             if metric_cols:
                 cols = st.columns(len(metric_cols))
                 for i, col in enumerate(metric_cols):
                     val = recipe_row[col]
                     if pd.notna(val) and str(val).strip() != "":
                         cols[i].metric(label=col, value=str(val))
+                st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
                 st.markdown("")
 
             log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
@@ -217,6 +215,7 @@ try:
             sum_cols[1].metric("💪 Protein", f"{rc_protein:.1f}g")
             sum_cols[2].metric("🌾 Carbs", f"{rc_carbs:.1f}g")
             sum_cols[3].metric("🥑 Fats", f"{rc_fats:.1f}g")
+            st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
             st.markdown("")
 
             # --- MANAGE LOGGED ITEMS WITH DELETE CONFIRMATION PROMPT ---
