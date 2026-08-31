@@ -10,7 +10,7 @@ st.write("Select a meal time below to explore recipes, nutrition details, and he
 # Direct CSV export URL for your Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
 
-@st.cache_data(ttl=10)  # Shortened cache time so it updates quickly if you change the sheet
+@st.cache_data(ttl=10)  # Refresh data every 10 seconds automatically
 def load_meal_data():
     data = pd.read_csv(SHEET_CSV_URL)
     # Clean up column names to avoid whitespace/casing mismatches
@@ -28,7 +28,7 @@ try:
         st.error("Could not find standard columns. Please ensure your sheet has 'Meal Type' and 'Recipe Name' column headers.")
         st.write("Current columns detected:", list(df.columns))
     else:
-        # Clean up the meal type column data (strip whitespace and handle empty rows)
+        # Clean up the meal type column data
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
         # 1. Horizontal radio buttons for standard meal categories
@@ -38,7 +38,7 @@ try:
             horizontal=True
         )
 
-        # Filter database using a flexible contains check so "Breakfast" matches "Breakfast", "Breakfast / Main", etc.
+        # Filter database using flexible contains check
         filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
 
         if filtered_df.empty:
@@ -56,7 +56,7 @@ try:
             st.divider()
             st.header(f"🍽️ {recipe_row[recipe_name_col]}")
 
-            # 3. Separate columns into metrics (Calories, Macros) and text details (Ingredients, Health Benefits)
+            # 3. Categorize columns into Metrics vs Long Text Details
             exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
             other_columns = [col for col in df.columns if col.lower() not in exclude_cols]
 
@@ -65,6 +65,7 @@ try:
 
             for col in other_columns:
                 col_lower = col.lower()
+                # Treat calorie and macro columns as metrics
                 if any(m in col_lower for m in ["calorie", "kcal", "protein", "carb", "fat", "gram", "g"]):
                     metric_cols.append(col)
                 else:
@@ -79,7 +80,7 @@ try:
                         cols[i].metric(label=col, value=str(val))
                 st.divider()
 
-            # Render text columns (like Ingredients & Instructions, Health Benefits)
+            # Render text columns (like Ingredients, Health Benefits, etc.) as clean full-width blocks below
             for col in text_cols:
                 val = recipe_row[col]
                 if pd.notna(val) and str(val).strip() != "":
