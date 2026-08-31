@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS with Flexbox layout to guarantee 4 clean, side-by-side metric boxes on mobile without overflowing
+# Custom CSS with Flexbox layout and explicit slider column vertical stacking fix for mobile
 st.markdown("""
     <style>
     .block-container {
@@ -39,14 +39,14 @@ st.markdown("""
         margin: 0;
     }
     
-    /* Robust Flexbox fix for 4 side-by-side columns on mobile */
-    [data-testid="stHorizontalBlock"] {
+    /* Robust Flexbox fix specifically and strictly limited to metric boxes so sliders remain vertical */
+    div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
     }
-    [data-testid="column"] {
+    div[data-testid="column"] div[data-testid="column"] {
         flex: 1 1 0% !important;
         min-width: 0 !important;
         width: 25% !important;
@@ -165,7 +165,7 @@ try:
         else:
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
             
-            # Feature 4: Keyword Search Bar alongside dropdown
+            # Keyword Search Bar alongside dropdown
             st.markdown(f"### Select an option for {meal_category}")
             search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{meal_category}")
             
@@ -206,7 +206,7 @@ try:
                     else:
                         text_cols.append(col)
 
-                # Feature 1: Portion Size Multiplier Slider
+                # Portion Size Multiplier Slider (Standalone vertical container)
                 st.markdown("")
                 portion_multiplier = st.slider("🍽️ Portion Multiplier", min_value=0.5, max_value=3.0, value=1.0, step=0.25, key=f"portion_{selected_recipe}")
 
@@ -291,7 +291,7 @@ try:
             sum_cols[3].metric("🥑 Fats", f"{rc_fats:.1f}g")
             st.markdown("")
 
-            # Feature 2: Daily Macro Goal Progress Bars (for today's totals)
+            # Daily Macro Goal Progress Bars (for today's totals)
             today_logs = [m for m in st.session_state.logged_meals if m['date'] == date.today()]
             t_calories, t_protein, t_carbs, t_fats = 0.0, 0.0, 0.0, 0.0
             for m in today_logs:
@@ -314,13 +314,13 @@ try:
             st.progress(min(t_protein / target_protein, 1.0) if target_protein > 0 else 0.0)
             
             st.markdown(f"**Carbs:** {t_carbs:.1f} / {target_carbs}g")
-            st.progress(min(t_carbs / target_carbs, 1.0) if target_carbs > 0 else 0.0)
+            st.progress(min(t_carbs / target_carbs, 1.0) if target_calories > 0 else 0.0)
             
             st.markdown(f"**Fats:** {t_fats:.1f} / {target_fats}g")
             st.progress(min(t_fats / target_fats, 1.0) if target_fats > 0 else 0.0)
             st.markdown("")
 
-            # Feature 3: Log Export to CSV
+            # Log Export to CSV
             df_export = pd.DataFrame([{
                 "Date": m['date'],
                 "Category": m['category'],
@@ -385,7 +385,7 @@ try:
                                 msg['From'] = smtp_user
                                 msg['To'] = "manishtripathi.irman@gmail.com"
                                 msg['Subject'] = f"Nutrition Range Report ({range_start} to {range_end})"
-                                msg['attach'](MIMEText(email_body, 'plain'))
+                                msg.attach(MIMEText(email_body, 'plain'))
 
                                 server = smtplib.SMTP(smtp_server, smtp_port)
                                 server.starttls()
