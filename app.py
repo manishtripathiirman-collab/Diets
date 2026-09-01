@@ -6,66 +6,55 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS with Flexbox layout and explicit metric box alignment fixes
+# Custom CSS for a true mobile-first layout: 
+# Compact font sizes, perfectly proportioned metric grids, and vertical stacking on mobile screens
 st.markdown("""
     <style>
     .block-container {
-        padding-top: 1rem;
+        padding-top: 0.8rem;
         padding-bottom: 2rem;
-        max-width: 700px;
+        max-width: 600px;
     }
     .watermark-banner {
         position: relative;
-        background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1000&q=80");
+        background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url("https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80");
         background-size: cover;
         background-position: center;
-        padding: 24px 16px;
-        border-radius: 12px;
+        padding: 18px 12px;
+        border-radius: 10px;
         color: white;
         text-align: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
     .watermark-banner h1 {
-        font-size: 20px !important;
+        font-size: 18px !important;
         font-weight: 700;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
     }
     .watermark-banner p {
-        font-size: 11px;
+        font-size: 10px;
         opacity: 0.9;
         margin: 0;
     }
     
-    /* FORCE 4 COLUMNS SIDE-BY-SIDE ON BOTH MOBILE AND DESKTOP */
-    [data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 6px !important;
-    }
-    [data-testid="column"] {
-        flex: 1 1 0% !important;
-        min-width: 0 !important;
-        width: 25% !important;
-    }
-
+    /* Mobile-first compact metric card styling with smaller text to prevent overflow */
     div[data-testid="stMetric"] {
-        background-color: rgba(128, 128, 128, 0.05);
+        background-color: rgba(128, 128, 128, 0.06);
         border: 1px solid rgba(128, 128, 128, 0.2);
         padding: 4px 6px !important;
-        border-radius: 8px;
+        border-radius: 6px;
         text-align: left;
     }
     div[data-testid="stMetric"] label {
-        font-size: 10px !important;
-        font-weight: 500;
+        font-size: 9px !important;
+        font-weight: 600;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        font-size: 13px !important;
-        font-weight: 600;
+        font-size: 12px !important;
+        font-weight: 700;
         text-align: right !important;
     }
     </style>
@@ -87,7 +76,6 @@ if "users_db" not in st.session_state:
         "mantri": {"password": "@Priyaojha12"}
     }
 
-# Sync authentication state with URL query parameters so refreshing never logs you out
 query_params = st.query_params
 url_user = query_params.get("user", "")
 
@@ -119,13 +107,12 @@ if not st.session_state.authenticated:
             if submit_login:
                 cleaned_user = user_input.strip()
                 db = st.session_state.users_db
-                
                 matched_user = next((u for u in db if u.lower() == cleaned_user.lower()), None)
                 
                 if matched_user and db[matched_user]["password"] == pass_input:
                     st.session_state.authenticated = True
                     st.session_state.username = matched_user
-                    st.query_params["user"] = matched_user  # Save login state in URL query params
+                    st.query_params["user"] = matched_user
                     st.success("Login successful!")
                     time.sleep(0.5)
                     st.rerun()
@@ -178,7 +165,6 @@ st.markdown("""
 
 user_key = st.session_state.username
 
-# Logout button in Sidebar
 with st.sidebar:
     st.write(f"Logged in as: **{user_key.capitalize()}**")
     if st.button("Logout", use_container_width=True):
@@ -201,13 +187,11 @@ try:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         df[recipe_name_col] = df[recipe_name_col].fillna("").astype(str).str.strip()
         
-        # User-specific session state variables initialization safely
         st.session_state.setdefault(f'logged_meals_{user_key}', [])
         st.session_state.setdefault(f'favorites_{user_key}', [])
         st.session_state.setdefault(f'confirm_delete_idx_{user_key}', None)
         st.session_state.setdefault(f'confirm_clear_all_{user_key}', False)
 
-        # --- SIDEBAR GOALS & QUICK-ADD ---
         with st.sidebar:
             st.header("🎯 Daily Targets")
             target_calories = st.number_input("Calorie Goal (kcal)", value=2000, step=50, key=f"t_cal_{user_key}")
@@ -219,7 +203,7 @@ try:
             st.markdown("### ⭐ Quick-Add Favorites")
             user_favorites = st.session_state[f'favorites_{user_key}']
             if not user_favorites:
-                st.info("No favorites added yet. Click '⭐ Add to Favorites' on any recipe card below.")
+                st.info("No favorites added yet.")
             else:
                 for fav in user_favorites:
                     col_fav_name, col_fav_btn = st.columns([2, 1])
@@ -247,7 +231,6 @@ try:
                             time.sleep(1)
                             st.rerun()
 
-        # Category filter handling
         meal_category = st.radio(
             "Choose Meal Category:",
             ["All", "Breakfast", "Lunch", "Dinner"],
@@ -261,7 +244,7 @@ try:
             filtered_df = df[df[meal_type_col].str.lower() == meal_category.lower()]
 
         if filtered_df.empty:
-            st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
+            st.info(f"No recipes found for **{meal_category}** yet.")
         else:
             unique_filtered_df = filtered_df.drop_duplicates(subset=[recipe_name_col])
             recipe_list = sorted(unique_filtered_df[recipe_name_col].dropna().unique().tolist())
@@ -284,7 +267,7 @@ try:
                 col_title.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
                 
                 is_fav = any(f['recipe'] == recipe_row[recipe_name_col] for f in st.session_state[f'favorites_{user_key}'])
-                fav_label = "⭐ Favorited" if is_fav else "☆ Add Favorite"
+                fav_label = "⭐ Favorited" if is_fav else "☆ Favorite"
                 if col_fav_toggle.button(fav_label, key=f"fav_toggle_{user_key}_{selected_recipe}", use_container_width=True):
                     if is_fav:
                         st.session_state[f'favorites_{user_key}'] = [f for f in st.session_state[f'favorites_{user_key}'] if f['recipe'] != recipe_row[recipe_name_col]]
@@ -351,7 +334,7 @@ try:
                         }
                         st.session_state[f'logged_meals_{user_key}'].append(meal_data_to_log)
                         
-                        temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_choice}) for {log_date} to your tracker!")
+                        temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_choice}) for {log_date}!")
                         time.sleep(2)
                         temp_alert.empty()
                         st.rerun()
@@ -431,7 +414,7 @@ try:
             st.markdown("")
 
             # --- DOWNLOADABLE REPORT SECTION ---
-            st.subheader("📥 Download Range Summary Report")
+            st.subheader("📥 Download Summary Report")
             
             df_range_export = pd.DataFrame([{
                 "Date": m['date'],
@@ -442,31 +425,10 @@ try:
             
             range_csv_data = df_range_export.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label=f"📥 Download Summary Report ({range_start} to {range_end}) as CSV",
+                label=f"📥 Download CSV ({range_start} to {range_end})",
                 data=range_csv_data,
                 file_name=f"nutrition_report_{user_key}_{range_start}_to_{range_end}.csv",
                 mime="text/csv",
-                use_container_width=True
-            )
-            
-            report_lines = [f"- {m['date']} | {m['category']}: {m['recipe']}" for m in range_filtered_logs]
-            text_report_content = f"""Nutrition Summary Report for {user_key.capitalize()}
-Period: {range_start} to {range_end}
-
-Logged Meals:
-""" + "\n".join(report_lines) + f"""
-
-Totals for Range:
-- Calories: {rc_calories:.0f} kcal
-- Protein: {rc_protein:.1f} g
-- Carbs: {rc_carbs:.1f} g
-- Fats: {rc_fats:.1f} g
-"""
-            st.download_button(
-                label=f"📄 Download Summary Report ({range_start} to {range_end}) as Text",
-                data=text_report_content.encode('utf-8'),
-                file_name=f"nutrition_report_{user_key}_{range_start}_to_{range_end}.txt",
-                mime="text/plain",
                 use_container_width=True
             )
             st.markdown("")
