@@ -9,7 +9,7 @@ import time
 # Set page configuration
 st.set_page_config(page_title="Meal Planner & Nutrition Tracker", page_icon="🥗", layout="centered")
 
-# Custom CSS with Flexbox layout and explicit slider column vertical stacking fix for mobile
+# Custom CSS with Flexbox layout and explicit metric box alignment fixes
 st.markdown("""
     <style>
     .block-container {
@@ -39,7 +39,7 @@ st.markdown("""
         margin: 0;
     }
     
-    /* Robust Flexbox fix specifically and strictly limited to metric boxes so sliders remain vertical */
+    /* Robust Flexbox fix specifically and strictly limited to metric boxes */
     div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -206,9 +206,22 @@ try:
                     else:
                         text_cols.append(col)
 
-                # Portion Size Multiplier Slider (Standalone vertical container)
-                st.markdown("")
-                portion_multiplier = st.slider("🍽️ Portion Multiplier", min_value=0.5, max_value=3.0, value=1.0, step=0.25, key=f"portion_{selected_recipe}")
+                # Portion Multiplier using horizontal radio buttons (like Breakfast/Lunch/Dinner)
+                st.markdown("**🍽️ Portion Multiplier**")
+                portion_choice = st.radio(
+                    "Portion Multiplier Choice:",
+                    ["1x", "1.5x", "2x"],
+                    horizontal=True,
+                    key=f"portion_radio_{selected_recipe}",
+                    label_visibility="collapsed"
+                )
+                
+                # Map radio text selection to numerical multiplier value
+                portion_multiplier = 1.0
+                if portion_choice == "1.5x":
+                    portion_multiplier = 1.5
+                elif portion_choice == "2x":
+                    portion_multiplier = 2.0
 
                 # Render numeric metrics scaled by portion multiplier strictly side-by-side in 4 columns
                 if metric_cols:
@@ -221,7 +234,7 @@ try:
                                 clean_val = float(str(val).replace("g", "").strip()) * portion_multiplier
                                 unit_suffix = "g" if "g" in str(val).lower() or col.lower() in ["protein", "carbs", "fats", "protein (g)", "carbs (g)", "fats (g)"] else ""
                                 formatted_val = f"{clean_val:.1f}{unit_suffix}" if unit_suffix else f"{clean_val:.0f}"
-                                cols[i].metric(label=f"{col} ({portion_multiplier}x)", value=formatted_val)
+                                cols[i].metric(label=f"{col} ({portion_choice})", value=formatted_val)
                                 scaled_metrics_dict[col] = clean_val
                             except:
                                 cols[i].metric(label=col, value=str(val))
@@ -237,12 +250,12 @@ try:
                         meal_data_to_log = {
                             "date": log_date,
                             "category": meal_category,
-                            "recipe": f"{recipe_row[recipe_name_col]} ({portion_multiplier}x)" if portion_multiplier != 1.0 else recipe_row[recipe_name_col],
+                            "recipe": f"{recipe_row[recipe_name_col]} ({portion_choice})" if portion_choice != "1x" else recipe_row[recipe_name_col],
                             "metrics": scaled_metrics_dict
                         }
                         st.session_state.logged_meals.append(meal_data_to_log)
                         
-                        temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_multiplier}x) for {log_date} to your tracker!")
+                        temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_choice}) for {log_date} to your tracker!")
                         time.sleep(2)
                         temp_alert.empty()
                         st.rerun()
@@ -314,7 +327,7 @@ try:
             st.progress(min(t_protein / target_protein, 1.0) if target_protein > 0 else 0.0)
             
             st.markdown(f"**Carbs:** {t_carbs:.1f} / {target_carbs}g")
-            st.progress(min(t_carbs / target_carbs, 1.0) if target_calories > 0 else 0.0)
+            st.progress(min(t_carbs / target_carbs, 1.0) if target_carbs > 0 else 0.0)
             
             st.markdown(f"**Fats:** {t_fats:.1f} / {target_fats}g")
             st.progress(min(t_fats / target_fats, 1.0) if target_fats > 0 else 0.0)
