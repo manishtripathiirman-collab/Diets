@@ -235,22 +235,25 @@ try:
                             time.sleep(1)
                             st.rerun()
 
-        # 1. Horizontal radio buttons for standard meal categories
+        # Added "All" option to category filter so the complete list of recipes can be viewed directly
         meal_category = st.radio(
             "Choose Meal Category:",
-            ["Breakfast", "Lunch", "Dinner"],
+            ["All", "Breakfast", "Lunch", "Dinner"],
             horizontal=True,
             key=f"meal_cat_{user_key}"
         )
 
-        filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
+        if meal_category == "All":
+            filtered_df = df
+        else:
+            filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
 
         if filtered_df.empty:
             st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
         else:
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
             
-            st.markdown(f"### Select an option for {meal_category}")
+            st.markdown(f"### Select an option ({meal_category})")
             search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{user_key}_{meal_category}")
             
             if search_query:
