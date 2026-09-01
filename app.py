@@ -81,64 +81,91 @@ def load_meal_data():
     data.columns = [c.strip() for c in data.columns]
     return data
 
-# --- AUTHENTICATION STATE SETUP ---
+# --- GLOBAL USER DB & STATE INITIALIZATION ---
+if "users_db" not in st.session_state:
+    st.session_state.users_db = {
+        "manish": {"password": "password123", "email": "manishtripathi.irman@gmail.com"},
+        "priya": {"password": "password123", "email": "priyadarshini.tripathi@gmail.com"}
+    }
+
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "username" not in st.session_state:
     st.session_state.username = ""
 
-# Fallback dictionary of users if st.secrets["users"] is not defined
-# Format: {"username": "password"}
-DEFAULT_USERS = {
-    "manish": "password123",
-    "priya": "password123"
-}
-
-def get_configured_users():
-    try:
-        if "users" in st.secrets:
-            return dict(st.secrets["users"])
-    except Exception:
-        pass
-    return DEFAULT_USERS
-
-# --- LOGIN SCREEN ---
+# --- AUTHENTICATION & REGISTRATION SCREEN ---
 if not st.session_state.authenticated:
     st.markdown("""
         <div class="watermark-banner">
-            <h1>🔐 Member Login</h1>
-            <p>Please enter your User ID and password to access your meal tracker</p>
+            <h1>🔐 Member Access</h1>
+            <p>Login with your credentials or create a new user profile</p>
         </div>
     """, unsafe_allow_html=True)
     
-    with st.form("login_form"):
-        user_input = st.text_input("User ID")
-        pass_input = st.text_input("Password", type="password")
-        submit_login = st.form_submit_button("Login", use_container_width=True)
-        
-        if submit_login:
-            users_db = get_configured_users()
-            if user_input in users_db and users_db[user_input] == pass_input:
-                st.session_state.authenticated = True
-                st.session_state.username = user_input
-                st.success("Login successful!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("Invalid User ID or Password.")
+    tab_login, tab_register = st.tabs(["🔑 Login", "📝 Create Account"])
+    
+    with tab_login:
+        with st.form("login_form"):
+            user_input = st.text_input("User ID", key="login_user")
+            pass_input = st.text_input("Password", type="password", key="login_pass")
+            remember_me = st.checkbox("Remember My Password (Save Session)")
+            submit_login = st.form_submit_button("Login", use_container_width=True)
+            
+            if submit_login:
+                db = st.session_state.users_db
+                if user_input in db and db[user_input]["password"] == pass_input:
+                    st.session_state.authenticated = True
+                    st.session_state.username = user_input
+                    st.success("Login successful!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Invalid User ID or Password.")
+                    
+    with tab_register:
+        with st.form("register_form"):
+            new_user = st.text_input("Choose User ID", key="reg_user")
+            new_pass = st.text_input("Choose Password", type="password", key="reg_pass")
+            new_email = st.text_input("Default Report Email ID", key="reg_email", placeholder="yourname@gmail.com")
+            submit_reg = st.form_submit_button("Create Account", use_container_width=True)
+            
+            if submit_reg:
+                cleaned_user = new_user.strip().lower()
+                if not cleaned_user or not new_pass or not new_email:
+                    st.warning("Please fill in all fields.")
+                elif cleaned_user in st.session_state.users_db:
+                    st.error("User ID already exists. Choose a different one.")
+                else:
+                    st.session_state.users_db[cleaned_user] = {
+                        "password": new_pass,
+                        "email": new_email.strip()
+                    }
+                    st.success("Account created successfully! Please switch to the Login tab.")
     st.stop()
 
 # --- MAIN APP (Post-Authentication) ---
 st.markdown("""
     <div class="watermark-banner">
         <h1>🥗 Daily Meal Planner & Nutrition Tracker</h1>
-        <p>Track composition, portions, goals, favorites, and email summaries</p>
+        <p>Track composition, portions, goals, favorites, and custom email reports</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Logout button in sidebar
+user_key = st.session_state.username
+current_user_data = st.session_state.users_db[user_key]
+
+# Logout & Profile Settings in Sidebar
 with st.sidebar:
-    st.write(f"Logged in as: **{st.session_state.username}**")
+    st.write(f"Logged in as: **{user_key}**")
+    
+    with st.expander("⚙️ Profile & Email Settings"):
+        updated_email = st.text_input("Report Recipient Email", value=current_user_data["email"], key=f"setting_email_{user_key}")
+        if st.button("Update Email", use_container_width=True):
+            st.session_state.users_db[user_key]["email"] = updated_email
+            st.success("Email updated!")
+            time.sleep(1)
+            st.rerun()
+            
     if st.button("Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.username = ""
@@ -157,7 +184,6 @@ try:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
         # User-specific session state variables initialization
-        user_key = st.session_state.username
         if f'logged_meals_{user_key}' not in st.session_state:
             st.session_state[f'logged_meals_{user_key}'] = []
         if f'favorites_{user_key}' not in st.session_state:
@@ -167,7 +193,7 @@ try:
         if f'confirm_clear_all_{user_key}' not in st.session_state:
             st.session_state[f'confirm_clear_all_{user_key}'] = False
 
-        # --- SIDEBAR GOALS & CONFIGURATION ---
+        # --- SIDEBAR GOALS & QUICK-ADD ---
         with st.sidebar:
             st.header("🎯 Daily Targets")
             target_calories = st.number_input("Calorie Goal (kcal)", value=2000, step=50, key=f"t_cal_{user_key}")
@@ -425,16 +451,20 @@ try:
                         st.rerun()
                 st.markdown("---")
 
-            # --- EMAIL REPORT SECTION ---
+            # --- EMAIL REPORT SECTION WITH CUSTOM RECIPIENT OPTION ---
             st.subheader("📧 Email Range Summary Report")
             with st.form(f"email_form_{user_key}"):
-                st.write(f"Send summary report (**{range_start} to {range_end}**) to your email:")
+                default_email = st.session_state.users_db[user_key]["email"]
+                recipient_email = st.text_input("Send Report To (Email Address)", value=default_email, key=f"recipient_{user_key}")
+                st.write(f"Report Period: **{range_start} to {range_end}**")
                 
                 submit_email = st.form_submit_button("Send Summary to Email", use_container_width=True)
                 
                 if submit_email:
                     if not range_filtered_logs:
                         st.warning("No logged meals found within the selected date range to email.")
+                    elif not recipient_email or "@" not in recipient_email:
+                        st.error("Please enter a valid email address.")
                     else:
                         report_lines = [f"- {m['date']} | {m['category']}: {m['recipe']}" for m in range_filtered_logs]
                         email_body = f"""Hello {user_key.capitalize()},\n\nHere is your nutrition summary report from {range_start} to {range_end}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals for Range:\n- Calories: {rc_calories:.0f} kcal\n- Protein: {rc_protein:.1f} g\n- Carbs: {rc_carbs:.1f} g\n- Fats: {rc_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
@@ -448,18 +478,18 @@ try:
 
                                 msg = MIMEMultipart()
                                 msg['From'] = smtp_user
-                                msg['To'] = "manishtripathi.irman@gmail.com"
+                                msg['To'] = recipient_email
                                 msg['Subject'] = f"Nutrition Range Report ({range_start} to {range_end})"
                                 msg.attach(MIMEText(email_body, 'plain'))
 
                                 server = smtplib.SMTP(smtp_server, smtp_port)
                                 server.starttls()
                                 server.login(smtp_user, smtp_pass)
-                                server.sendmail(smtp_user, "manishtripathi.irman@gmail.com", msg.as_string())
+                                server.sendmail(smtp_user, recipient_email, msg.as_string())
                                 server.quit()
-                                st.success("Report successfully sent!")
+                                st.success(f"Report successfully sent to {recipient_email}!")
                             else:
-                                st.success(f"Report compiled successfully for {range_start} to {range_end}!")
+                                st.success(f"Report compiled successfully for {recipient_email} ({range_start} to {range_end})!")
                                 with st.expander("View Email Content Preview"):
                                     st.text(email_body)
                                 st.info("Note: Configure your SMTP credentials in Streamlit Secrets to enable direct emailing.")
