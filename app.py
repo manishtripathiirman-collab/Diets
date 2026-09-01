@@ -36,13 +36,14 @@ st.markdown("""
         margin: 0;
     }
     
-    div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
+    /* FORCE 4 COLUMNS SIDE-BY-SIDE ON BOTH MOBILE AND DESKTOP */
+    [data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
     }
-    div[data-testid="column"] div[data-testid="column"] {
+    [data-testid="column"] {
         flex: 1 1 0% !important;
         min-width: 0 !important;
         width: 25% !important;
@@ -83,7 +84,7 @@ if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "manish": {"password": "password123"},
         "priya": {"password": "password123"},
-        "mantri": {"password": "@Priyaojha12"} # Pre-added your account credentials for instant access
+        "mantri": {"password": "@Priyaojha12"}
     }
 
 st.session_state.setdefault("authenticated", False)
@@ -111,7 +112,6 @@ if not st.session_state.authenticated:
                 cleaned_user = user_input.strip()
                 db = st.session_state.users_db
                 
-                # Check exact or case-insensitive match
                 matched_user = next((u for u in db if u.lower() == cleaned_user.lower()), None)
                 
                 if matched_user and db[matched_user]["password"] == pass_input:
