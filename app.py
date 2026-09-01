@@ -78,17 +78,15 @@ def load_meal_data():
     data.columns = [c.strip() for c in data.columns]
     return data
 
-# --- GLOBAL USER DB & STATE INITIALIZATION ---
+# --- ROBUST GLOBAL USER DB & STATE INITIALIZATION ---
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "manish": {"password": "password123"},
         "priya": {"password": "password123"}
     }
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "username" not in st.session_state:
-    st.session_state.username = ""
+st.session_state.setdefault("authenticated", False)
+st.session_state.setdefault("username", "")
 
 # --- AUTHENTICATION & REGISTRATION SCREEN ---
 if not st.session_state.authenticated:
@@ -102,27 +100,28 @@ if not st.session_state.authenticated:
     tab_login, tab_register = st.tabs(["🔑 Login", "📝 Create Account"])
     
     with tab_login:
-        with st.form("login_form"):
-            user_input = st.text_input("User ID", key="login_user")
-            pass_input = st.text_input("Password", type="password", key="login_pass")
+        with st.form("login_form_persistent"):
+            user_input = st.text_input("User ID", key="login_user_field")
+            pass_input = st.text_input("Password", type="password", key="login_pass_field")
             submit_login = st.form_submit_button("Login", use_container_width=True)
             
             if submit_login:
-                db = st.session_state.users_db
                 cleaned_user = user_input.strip().lower()
+                db = st.session_state.users_db
+                
                 if cleaned_user in db and db[cleaned_user]["password"] == pass_input:
                     st.session_state.authenticated = True
                     st.session_state.username = cleaned_user
                     st.success("Login successful!")
-                    time.sleep(1)
+                    time.sleep(0.5)
                     st.rerun()
                 else:
                     st.error("Invalid User ID or Password.")
                     
     with tab_register:
-        with st.form("register_form"):
-            new_user = st.text_input("Choose User ID", key="reg_user")
-            new_pass = st.text_input("Choose Password", type="password", key="reg_pass")
+        with st.form("register_form_persistent"):
+            new_user = st.text_input("Choose User ID", key="reg_user_field")
+            new_pass = st.text_input("Choose Password", type="password", key="reg_pass_field")
             submit_reg = st.form_submit_button("Create Account", use_container_width=True)
             
             if submit_reg:
@@ -133,7 +132,7 @@ if not st.session_state.authenticated:
                     st.error("User ID already exists. Choose a different one.")
                 else:
                     st.session_state.users_db[cleaned_user] = {"password": new_pass}
-                    st.success("Account created successfully! Please switch to the Login tab.")
+                    st.success(f"Account '{cleaned_user}' created successfully! Please click the '🔑 Login' tab above to sign in.")
     st.stop()
 
 # --- MAIN APP (Post-Authentication) ---
@@ -166,15 +165,11 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # User-specific session state variables initialization
-        if f'logged_meals_{user_key}' not in st.session_state:
-            st.session_state[f'logged_meals_{user_key}'] = []
-        if f'favorites_{user_key}' not in st.session_state:
-            st.session_state[f'favorites_{user_key}'] = []
-        if f'confirm_delete_idx_{user_key}' not in st.session_state:
-            st.session_state[f'confirm_delete_idx_{user_key}'] = None
-        if f'confirm_clear_all_{user_key}' not in st.session_state:
-            st.session_state[f'confirm_clear_all_{user_key}'] = False
+        # User-specific session state variables initialization safely
+        st.session_state.setdefault(f'logged_meals_{user_key}', [])
+        st.session_state.setdefault(f'favorites_{user_key}', [])
+        st.session_state.setdefault(f'confirm_delete_idx_{user_key}', None)
+        st.session_state.setdefault(f'confirm_clear_all_{user_key}', False)
 
         # --- SIDEBAR GOALS & QUICK-ADD ---
         with st.sidebar:
@@ -398,7 +393,6 @@ try:
             # --- DOWNLOADABLE REPORT SECTION ---
             st.subheader("📥 Download Range Summary Report")
             
-            # Construct CSV format specifically for the selected date range
             df_range_export = pd.DataFrame([{
                 "Date": m['date'],
                 "Category": m['category'],
@@ -415,7 +409,6 @@ try:
                 use_container_width=True
             )
             
-            # Also provide a formatted text report download option
             report_lines = [f"- {m['date']} | {m['category']}: {m['recipe']}" for m in range_filtered_logs]
             text_report_content = f"""Nutrition Summary Report for {user_key.capitalize()}
 Period: {range_start} to {range_end}
