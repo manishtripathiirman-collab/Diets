@@ -79,7 +79,7 @@ def load_meal_data():
     data.columns = [c.strip() for c in data.columns]
     return data
 
-# --- FOOLPROOF USER DB PERSISTENCE ---
+# --- FOOLPROOF USER DB & 24-HOUR PERSISTENT SESSION STATE ---
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "manish": {"password": "password123"},
@@ -89,13 +89,21 @@ if "users_db" not in st.session_state:
 
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("username", "")
+st.session_state.setdefault("login_date", None)
+
+# Auto-expire session only if the calendar date changes (persists login for the entire day)
+today_str = date.today().isoformat()
+if st.session_state.authenticated and st.session_state.get("login_date") != today_str:
+    st.session_state.authenticated = False
+    st.session_state.username = ""
+    st.session_state.login_date = None
 
 # --- AUTHENTICATION & REGISTRATION SCREEN ---
 if not st.session_state.authenticated:
     st.markdown("""
         <div class="watermark-banner">
             <h1>🔐 Member Access</h1>
-            <p>Login, create an account, or reset your password</p>
+            <p>Login once and stay logged in for the entire day</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -117,6 +125,7 @@ if not st.session_state.authenticated:
                 if matched_user and db[matched_user]["password"] == pass_input:
                     st.session_state.authenticated = True
                     st.session_state.username = matched_user
+                    st.session_state.login_date = today_str  # Lock session to today's date
                     st.success("Login successful!")
                     time.sleep(0.5)
                     st.rerun()
@@ -175,6 +184,7 @@ with st.sidebar:
     if st.button("Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.username = ""
+        st.session_state.login_date = None
         st.rerun()
     st.divider()
 
@@ -252,7 +262,6 @@ try:
         if filtered_df.empty:
             st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
         else:
-            # Drop duplicates on recipe name so each unique recipe appears once in the dropdown
             unique_filtered_df = filtered_df.drop_duplicates(subset=[recipe_name_col])
             recipe_list = sorted(unique_filtered_df[recipe_name_col].dropna().unique().tolist())
             
