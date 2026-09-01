@@ -187,6 +187,7 @@ try:
     if not meal_type_col or not recipe_name_col:
         st.error("Could not find standard columns. Please ensure your sheet has 'Meal Type' and 'Recipe Name' column headers.")
     else:
+        # Robustly clean and normalize meal type entries regardless of Google Sheet alphabetical ordering
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
         # User-specific session state variables initialization safely
@@ -235,7 +236,7 @@ try:
                             time.sleep(1)
                             st.rerun()
 
-        # Added "All" option to category filter so the complete list of recipes can be viewed directly
+        # Category filter handling alphabetical sheet order seamlessly
         meal_category = st.radio(
             "Choose Meal Category:",
             ["All", "Breakfast", "Lunch", "Dinner"],
@@ -251,7 +252,8 @@ try:
         if filtered_df.empty:
             st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
         else:
-            recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
+            # Sort recipe options alphabetically for clean UI presentation regardless of sheet row sequence
+            recipe_list = sorted(filtered_df[recipe_name_col].dropna().unique().tolist())
             
             st.markdown(f"### Select an option ({meal_category})")
             search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{user_key}_{meal_category}")
