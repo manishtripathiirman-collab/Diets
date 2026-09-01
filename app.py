@@ -93,11 +93,11 @@ if not st.session_state.authenticated:
     st.markdown("""
         <div class="watermark-banner">
             <h1>🔐 Member Access</h1>
-            <p>Login with your credentials or create a new user profile</p>
+            <p>Login, create an account, or reset your password</p>
         </div>
     """, unsafe_allow_html=True)
     
-    tab_login, tab_register = st.tabs(["🔑 Login", "📝 Create Account"])
+    tab_login, tab_register, tab_reset = st.tabs(["🔑 Login", "📝 Create Account", "🔄 Forgot Password"])
     
     with tab_login:
         with st.form("login_form_persistent"):
@@ -133,6 +133,24 @@ if not st.session_state.authenticated:
                 else:
                     st.session_state.users_db[cleaned_user] = {"password": new_pass}
                     st.success(f"Account '{cleaned_user}' created successfully! Please click the '🔑 Login' tab above to sign in.")
+
+    with tab_reset:
+        with st.form("reset_form_persistent"):
+            st.write("Reset your password by entering your User ID and a new password.")
+            reset_user = st.text_input("User ID", key="reset_user_field")
+            new_reset_pass = st.text_input("New Password", type="password", key="reset_pass_field")
+            submit_reset = st.form_submit_button("Update Password", use_container_width=True)
+            
+            if submit_reset:
+                cleaned_user = reset_user.strip().lower()
+                db = st.session_state.users_db
+                if not cleaned_user or not new_reset_pass:
+                    st.warning("Please fill in all fields.")
+                elif cleaned_user in db:
+                    db[cleaned_user]["password"] = new_reset_pass
+                    st.success(f"Password for '{cleaned_user}' updated successfully! Switch to the Login tab.")
+                else:
+                    st.error("User ID not found in the system.")
     st.stop()
 
 # --- MAIN APP (Post-Authentication) ---
