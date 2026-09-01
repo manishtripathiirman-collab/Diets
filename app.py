@@ -39,7 +39,6 @@ st.markdown("""
         margin: 0;
     }
     
-    /* Robust Flexbox fix specifically and strictly limited to metric boxes */
     div[data-testid="column"] div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -52,7 +51,6 @@ st.markdown("""
         width: 25% !important;
     }
 
-    /* Compact metric box styling for mobile screens */
     div[data-testid="stMetric"] {
         background-color: rgba(128, 128, 128, 0.05);
         border: 1px solid rgba(128, 128, 128, 0.2);
@@ -75,14 +73,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Compact Watermark Banner Header
-st.markdown("""
-    <div class="watermark-banner">
-        <h1>🥗 Daily Meal Planner & Nutrition Tracker</h1>
-        <p>Track composition, portions, goals, favorites, and email summaries to manishtripathi.irman@gmail.com</p>
-    </div>
-""", unsafe_allow_html=True)
-
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1aTt0FZH5F-w0fx18tYkeWauSbJ1S4JjwvPfrVbQBbCU/export?format=csv&gid=0"
 
 @st.cache_data(ttl=10)
@@ -90,6 +80,70 @@ def load_meal_data():
     data = pd.read_csv(SHEET_CSV_URL)
     data.columns = [c.strip() for c in data.columns]
     return data
+
+# --- AUTHENTICATION STATE SETUP ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
+# Fallback dictionary of users if st.secrets["users"] is not defined
+# Format: {"username": "password"}
+DEFAULT_USERS = {
+    "manish": "password123",
+    "priya": "password123"
+}
+
+def get_configured_users():
+    try:
+        if "users" in st.secrets:
+            return dict(st.secrets["users"])
+    except Exception:
+        pass
+    return DEFAULT_USERS
+
+# --- LOGIN SCREEN ---
+if not st.session_state.authenticated:
+    st.markdown("""
+        <div class="watermark-banner">
+            <h1>🔐 Member Login</h1>
+            <p>Please enter your User ID and password to access your meal tracker</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    with st.form("login_form"):
+        user_input = st.text_input("User ID")
+        pass_input = st.text_input("Password", type="password")
+        submit_login = st.form_submit_button("Login", use_container_width=True)
+        
+        if submit_login:
+            users_db = get_configured_users()
+            if user_input in users_db and users_db[user_input] == pass_input:
+                st.session_state.authenticated = True
+                st.session_state.username = user_input
+                st.success("Login successful!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Invalid User ID or Password.")
+    st.stop()
+
+# --- MAIN APP (Post-Authentication) ---
+st.markdown("""
+    <div class="watermark-banner">
+        <h1>🥗 Daily Meal Planner & Nutrition Tracker</h1>
+        <p>Track composition, portions, goals, favorites, and email summaries</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# Logout button in sidebar
+with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state.username}**")
+    if st.button("Logout", use_container_width=True):
+        st.session_state.authenticated = False
+        st.session_state.username = ""
+        st.rerun()
+    st.divider()
 
 try:
     df = load_meal_data()
@@ -102,33 +156,35 @@ try:
     else:
         df[meal_type_col] = df[meal_type_col].fillna("").astype(str).str.strip()
         
-        # Initialize session state variables
-        if 'logged_meals' not in st.session_state:
-            st.session_state.logged_meals = []
-        if 'favorites' not in st.session_state:
-            st.session_state.favorites = []
-        if 'confirm_delete_idx' not in st.session_state:
-            st.session_state.confirm_delete_idx = None
-        if 'confirm_clear_all' not in st.session_state:
-            st.session_state.confirm_clear_all = False
+        # User-specific session state variables initialization
+        user_key = st.session_state.username
+        if f'logged_meals_{user_key}' not in st.session_state:
+            st.session_state[f'logged_meals_{user_key}'] = []
+        if f'favorites_{user_key}' not in st.session_state:
+            st.session_state[f'favorites_{user_key}'] = []
+        if f'confirm_delete_idx_{user_key}' not in st.session_state:
+            st.session_state[f'confirm_delete_idx_{user_key}'] = None
+        if f'confirm_clear_all_{user_key}' not in st.session_state:
+            st.session_state[f'confirm_clear_all_{user_key}'] = False
 
         # --- SIDEBAR GOALS & CONFIGURATION ---
         with st.sidebar:
             st.header("🎯 Daily Targets")
-            target_calories = st.number_input("Calorie Goal (kcal)", value=2000, step=50)
-            target_protein = st.number_input("Protein Goal (g)", value=130.0, step=5.0)
-            target_carbs = st.number_input("Carbs Goal (g)", value=200.0, step=5.0)
-            target_fats = st.number_input("Fats Goal (g)", value=60.0, step=5.0)
+            target_calories = st.number_input("Calorie Goal (kcal)", value=2000, step=50, key=f"t_cal_{user_key}")
+            target_protein = st.number_input("Protein Goal (g)", value=130.0, step=5.0, key=f"t_pro_{user_key}")
+            target_carbs = st.number_input("Carbs Goal (g)", value=200.0, step=5.0, key=f"t_carb_{user_key}")
+            target_fats = st.number_input("Fats Goal (g)", value=60.0, step=5.0, key=f"t_fat_{user_key}")
             
             st.divider()
             st.markdown("### ⭐ Quick-Add Favorites")
-            if not st.session_state.favorites:
+            user_favorites = st.session_state[f'favorites_{user_key}']
+            if not user_favorites:
                 st.info("No favorites added yet. Click '⭐ Add to Favorites' on any recipe card below.")
             else:
-                for fav in st.session_state.favorites:
+                for fav in user_favorites:
                     col_fav_name, col_fav_btn = st.columns([2, 1])
                     col_fav_name.write(f"**{fav['recipe']}**")
-                    if col_fav_btn.button("Log", key=f"fav_log_{fav['recipe']}"):
+                    if col_fav_btn.button("Log", key=f"fav_log_{user_key}_{fav['recipe']}"):
                         fav_row = df[df[recipe_name_col] == fav['recipe']]
                         if not fav_row.empty:
                             r_data = fav_row.iloc[0]
@@ -141,7 +197,7 @@ try:
                                             parsed_metrics[col] = float(str(val).replace("g", "").strip())
                                         except:
                                             pass
-                            st.session_state.logged_meals.append({
+                            st.session_state[f'logged_meals_{user_key}'].append({
                                 "date": date.today(),
                                 "category": r_data[meal_type_col],
                                 "recipe": r_data[recipe_name_col],
@@ -155,7 +211,8 @@ try:
         meal_category = st.radio(
             "Choose Meal Category:",
             ["Breakfast", "Lunch", "Dinner"],
-            horizontal=True
+            horizontal=True,
+            key=f"meal_cat_{user_key}"
         )
 
         filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
@@ -165,9 +222,8 @@ try:
         else:
             recipe_list = filtered_df[recipe_name_col].dropna().unique().tolist()
             
-            # Keyword Search Bar alongside dropdown
             st.markdown(f"### Select an option for {meal_category}")
-            search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{meal_category}")
+            search_query = st.text_input("🔍 Search recipe by keyword", placeholder="e.g. paneer, egg, oats...", key=f"search_{user_key}_{meal_category}")
             
             if search_query:
                 recipe_list = [r for r in recipe_list if search_query.lower() in r.lower()]
@@ -175,22 +231,21 @@ try:
                     st.warning(f"No recipes match '{search_query}'.")
             
             if recipe_list:
-                selected_recipe = st.selectbox("Available Options:", recipe_list, key=f"select_{meal_category}")
+                selected_recipe = st.selectbox("Available Options:", recipe_list, key=f"select_{user_key}_{meal_category}")
                 recipe_row = filtered_df[filtered_df[recipe_name_col] == selected_recipe].iloc[0]
 
                 st.divider()
                 
-                # Header with Favorite button toggle
                 col_title, col_fav_toggle = st.columns([3, 1])
                 col_title.markdown(f"### 🍽️ {recipe_row[recipe_name_col]}")
                 
-                is_fav = any(f['recipe'] == recipe_row[recipe_name_col] for f in st.session_state.favorites)
+                is_fav = any(f['recipe'] == recipe_row[recipe_name_col] for f in st.session_state[f'favorites_{user_key}'])
                 fav_label = "⭐ Favorited" if is_fav else "☆ Add Favorite"
-                if col_fav_toggle.button(fav_label, key=f"fav_toggle_{selected_recipe}", use_container_width=True):
+                if col_fav_toggle.button(fav_label, key=f"fav_toggle_{user_key}_{selected_recipe}", use_container_width=True):
                     if is_fav:
-                        st.session_state.favorites = [f for f in st.session_state.favorites if f['recipe'] != recipe_row[recipe_name_col]]
+                        st.session_state[f'favorites_{user_key}'] = [f for f in st.session_state[f'favorites_{user_key}'] if f['recipe'] != recipe_row[recipe_name_col]]
                     else:
-                        st.session_state.favorites.append({"recipe": recipe_row[recipe_name_col], "category": meal_category})
+                        st.session_state[f'favorites_{user_key}'].append({"recipe": recipe_row[recipe_name_col], "category": meal_category})
                     st.rerun()
 
                 exclude_cols = {meal_type_col.lower(), recipe_name_col.lower()}
@@ -206,24 +261,21 @@ try:
                     else:
                         text_cols.append(col)
 
-                # Portion Multiplier using horizontal radio buttons (like Breakfast/Lunch/Dinner)
                 st.markdown("**🍽️ Portion Multiplier**")
                 portion_choice = st.radio(
                     "Portion Multiplier Choice:",
                     ["1x", "1.5x", "2x"],
                     horizontal=True,
-                    key=f"portion_radio_{selected_recipe}",
+                    key=f"portion_radio_{user_key}_{selected_recipe}",
                     label_visibility="collapsed"
                 )
                 
-                # Map radio text selection to numerical multiplier value
                 portion_multiplier = 1.0
                 if portion_choice == "1.5x":
                     portion_multiplier = 1.5
                 elif portion_choice == "2x":
                     portion_multiplier = 2.0
 
-                # Render numeric metrics scaled by portion multiplier strictly side-by-side in 4 columns
                 if metric_cols:
                     cols = st.columns(len(metric_cols))
                     scaled_metrics_dict = {}
@@ -241,7 +293,7 @@ try:
                                 scaled_metrics_dict[col] = val
                     st.markdown("")
 
-                log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{selected_recipe}")
+                log_date = st.date_input("Meal Date", value=date.today(), key=f"date_{user_key}_{selected_recipe}")
 
                 if st.button("➕ Add to Food Log", type="primary", use_container_width=True):
                     if log_date > date.today():
@@ -253,7 +305,7 @@ try:
                             "recipe": f"{recipe_row[recipe_name_col]} ({portion_choice})" if portion_choice != "1x" else recipe_row[recipe_name_col],
                             "metrics": scaled_metrics_dict
                         }
-                        st.session_state.logged_meals.append(meal_data_to_log)
+                        st.session_state[f'logged_meals_{user_key}'].append(meal_data_to_log)
                         
                         temp_alert = st.success(f"✅ Added **{recipe_row[recipe_name_col]}** ({portion_choice}) for {log_date} to your tracker!")
                         time.sleep(2)
@@ -273,15 +325,16 @@ try:
         st.markdown("---")
         st.header("📊 Nutrition Log & Date Range Tracker")
         
-        if not st.session_state.logged_meals:
+        user_logs = st.session_state[f'logged_meals_{user_key}']
+        if not user_logs:
             st.info("No meals logged yet. Add meals above to start tracking.")
         else:
             st.markdown("#### 🔍 Select Date Range for Summary")
             col_d1, col_d2 = st.columns(2)
-            range_start = col_d1.date_input("From Date", value=date.today(), key="summary_start")
-            range_end = col_d2.date_input("To Date", value=date.today(), key="summary_end")
+            range_start = col_d1.date_input("From Date", value=date.today(), key=f"summary_start_{user_key}")
+            range_end = col_d2.date_input("To Date", value=date.today(), key=f"summary_end_{user_key}")
 
-            range_filtered_logs = [m for m in st.session_state.logged_meals if range_start <= m['date'] <= range_end]
+            range_filtered_logs = [m for m in user_logs if range_start <= m['date'] <= range_end]
 
             rc_calories, rc_protein, rc_carbs, rc_fats = 0.0, 0.0, 0.0, 0.0
             for m in range_filtered_logs:
@@ -304,8 +357,8 @@ try:
             sum_cols[3].metric("🥑 Fats", f"{rc_fats:.1f}g")
             st.markdown("")
 
-            # Daily Macro Goal Progress Bars (for today's totals)
-            today_logs = [m for m in st.session_state.logged_meals if m['date'] == date.today()]
+            # Daily Macro Goal Progress Bars
+            today_logs = [m for m in user_logs if m['date'] == date.today()]
             t_calories, t_protein, t_carbs, t_fats = 0.0, 0.0, 0.0, 0.0
             for m in today_logs:
                 for m_key, m_val in m['metrics'].items():
@@ -333,50 +386,49 @@ try:
             st.progress(min(t_fats / target_fats, 1.0) if target_fats > 0 else 0.0)
             st.markdown("")
 
-            # Log Export to CSV
             df_export = pd.DataFrame([{
                 "Date": m['date'],
                 "Category": m['category'],
                 "Recipe": m['recipe'],
                 **{k: v for k, v in m['metrics'].items()}
-            } for m in st.session_state.logged_meals])
+            } for m in user_logs])
             
             csv_data = df_export.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Complete Log as CSV",
                 data=csv_data,
-                file_name=f"nutrition_log_{date.today()}.csv",
+                file_name=f"nutrition_log_{user_key}_{date.today()}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
             st.markdown("")
 
-            # --- MANAGE LOGGED ITEMS WITH DELETE CONFIRMATION PROMPT ---
+            # --- MANAGE LOGGED ITEMS WITH DELETE CONFIRMATION ---
             st.markdown("#### 📝 All Logged Meals")
-            for idx, meal in enumerate(st.session_state.logged_meals):
+            for idx, meal in enumerate(user_logs):
                 col_item_info, col_item_btn = st.columns([3, 1])
                 with col_item_info:
                     st.markdown(f"**{idx+1}. {meal['recipe']}** *({meal['category']})* <br><small>📅 {meal['date']}</small>", unsafe_allow_html=True)
                 with col_item_btn:
-                    if st.button("🗑️ Delete", key=f"del_btn_{idx}", use_container_width=True):
-                        st.session_state.confirm_delete_idx = idx
+                    if st.button("🗑️ Delete", key=f"del_btn_{user_key}_{idx}", use_container_width=True):
+                        st.session_state[f'confirm_delete_idx_{user_key}'] = idx
 
-                if st.session_state.confirm_delete_idx == idx:
+                if st.session_state[f'confirm_delete_idx_{user_key}'] == idx:
                     st.warning(f"Are you sure you want to delete **{meal['recipe']}** ({meal['date']})?")
                     c_yes, c_no = st.columns(2)
-                    if c_yes.button("Yes, Delete", key=f"yes_del_{idx}", use_container_width=True):
-                        st.session_state.logged_meals.pop(idx)
-                        st.session_state.confirm_delete_idx = None
+                    if c_yes.button("Yes, Delete", key=f"yes_del_{user_key}_{idx}", use_container_width=True):
+                        st.session_state[f'logged_meals_{user_key}'].pop(idx)
+                        st.session_state[f'confirm_delete_idx_{user_key}'] = None
                         st.rerun()
-                    if c_no.button("Cancel", key=f"no_del_{idx}", use_container_width=True):
-                        st.session_state.confirm_delete_idx = None
+                    if c_no.button("Cancel", key=f"no_del_{user_key}_{idx}", use_container_width=True):
+                        st.session_state[f'confirm_delete_idx_{user_key}'] = None
                         st.rerun()
                 st.markdown("---")
 
             # --- EMAIL REPORT SECTION ---
             st.subheader("📧 Email Range Summary Report")
-            with st.form("email_form"):
-                st.write(f"Send summary report (**{range_start} to {range_end}**) to **manishtripathi.irman@gmail.com**:")
+            with st.form(f"email_form_{user_key}"):
+                st.write(f"Send summary report (**{range_start} to {range_end}**) to your email:")
                 
                 submit_email = st.form_submit_button("Send Summary to Email", use_container_width=True)
                 
@@ -385,7 +437,7 @@ try:
                         st.warning("No logged meals found within the selected date range to email.")
                     else:
                         report_lines = [f"- {m['date']} | {m['category']}: {m['recipe']}" for m in range_filtered_logs]
-                        email_body = f"""Hello Manish,\n\nHere is your nutrition summary report from {range_start} to {range_end}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals for Range:\n- Calories: {rc_calories:.0f} kcal\n- Protein: {rc_protein:.1f} g\n- Carbs: {rc_carbs:.1f} g\n- Fats: {rc_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
+                        email_body = f"""Hello {user_key.capitalize()},\n\nHere is your nutrition summary report from {range_start} to {range_end}:\n\nLogged Meals:\n""" + "\n".join(report_lines) + f"""\n\nTotals for Range:\n- Calories: {rc_calories:.0f} kcal\n- Protein: {rc_protein:.1f} g\n- Carbs: {rc_carbs:.1f} g\n- Fats: {rc_fats:.1f} g\n\nBest regards,\nYour Meal Planner App"""
 
                         try:
                             if "smtp" in st.secrets:
@@ -405,28 +457,28 @@ try:
                                 server.login(smtp_user, smtp_pass)
                                 server.sendmail(smtp_user, "manishtripathi.irman@gmail.com", msg.as_string())
                                 server.quit()
-                                st.success("Report successfully sent to manishtripathi.irman@gmail.com!")
+                                st.success("Report successfully sent!")
                             else:
-                                st.success(f"Report compiled successfully for manishtripathi.irman@gmail.com ({range_start} to {range_end})!")
+                                st.success(f"Report compiled successfully for {range_start} to {range_end}!")
                                 with st.expander("View Email Content Preview"):
                                     st.text(email_body)
-                                st.info("Note: To enable direct auto-sending via SMTP, configure your email credentials under Streamlit app Secrets.")
+                                st.info("Note: Configure your SMTP credentials in Streamlit Secrets to enable direct emailing.")
                         except Exception as mail_err:
                             st.error(f"Failed to send email: {mail_err}")
 
-            if not st.session_state.confirm_clear_all:
-                if st.button("Clear Entire Log", use_container_width=True):
-                    st.session_state.confirm_clear_all = True
+            if not st.session_state[f'confirm_clear_all_{user_key}']:
+                if st.button("Clear Entire Log", use_container_width=True, key=f"clear_all_{user_key}"):
+                    st.session_state[f'confirm_clear_all_{user_key}'] = True
                     st.rerun()
             else:
                 st.warning("Are you sure you want to clear your entire log?")
                 cc_yes, cc_no = st.columns(2)
-                if cc_yes.button("Yes, Clear All", use_container_width=True):
-                    st.session_state.logged_meals = []
-                    st.session_state.confirm_clear_all = False
+                if cc_yes.button("Yes, Clear All", use_container_width=True, key=f"yes_clear_{user_key}"):
+                    st.session_state[f'logged_meals_{user_key}'] = []
+                    st.session_state[f'confirm_clear_all_{user_key}'] = False
                     st.rerun()
-                if cc_no.button("Cancel", use_container_width=True):
-                    st.session_state.confirm_clear_all = False
+                if cc_no.button("Cancel", use_container_width=True, key=f"no_clear_{user_key}"):
+                    st.session_state[f'confirm_clear_all_{user_key}'] = False
                     st.rerun()
 
 except Exception as e:
