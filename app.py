@@ -78,11 +78,12 @@ def load_meal_data():
     data.columns = [c.strip() for c in data.columns]
     return data
 
-# --- ROBUST GLOBAL USER DB & STATE INITIALIZATION ---
+# --- FOOLPROOF USER DB PERSISTENCE ---
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "manish": {"password": "password123"},
-        "priya": {"password": "password123"}
+        "priya": {"password": "password123"},
+        "mantri": {"password": "@Priyaojha12"} # Pre-added your account credentials for instant access
     }
 
 st.session_state.setdefault("authenticated", False)
@@ -97,58 +98,63 @@ if not st.session_state.authenticated:
         </div>
     """, unsafe_allow_html=True)
     
-    tab_login, tab_register, tab_reset = st.tabs(["🔑 Login", "📝 Create Account", "🔄 Forgot Password"])
-    
-    with tab_login:
+    auth_choice = st.radio("Select Action:", ["Login", "Create Account", "Forgot Password"], horizontal=True)
+    st.divider()
+
+    if auth_choice == "Login":
         with st.form("login_form_persistent"):
-            user_input = st.text_input("User ID", key="login_user_field")
-            pass_input = st.text_input("Password", type="password", key="login_pass_field")
+            user_input = st.text_input("User ID")
+            pass_input = st.text_input("Password", type="password")
             submit_login = st.form_submit_button("Login", use_container_width=True)
             
             if submit_login:
-                cleaned_user = user_input.strip().lower()
+                cleaned_user = user_input.strip()
                 db = st.session_state.users_db
                 
-                if cleaned_user in db and db[cleaned_user]["password"] == pass_input:
+                # Check exact or case-insensitive match
+                matched_user = next((u for u in db if u.lower() == cleaned_user.lower()), None)
+                
+                if matched_user and db[matched_user]["password"] == pass_input:
                     st.session_state.authenticated = True
-                    st.session_state.username = cleaned_user
+                    st.session_state.username = matched_user
                     st.success("Login successful!")
                     time.sleep(0.5)
                     st.rerun()
                 else:
                     st.error("Invalid User ID or Password.")
                     
-    with tab_register:
+    elif auth_choice == "Create Account":
         with st.form("register_form_persistent"):
-            new_user = st.text_input("Choose User ID", key="reg_user_field")
-            new_pass = st.text_input("Choose Password", type="password", key="reg_pass_field")
+            new_user = st.text_input("Choose User ID")
+            new_pass = st.text_input("Choose Password", type="password")
             submit_reg = st.form_submit_button("Create Account", use_container_width=True)
             
             if submit_reg:
-                cleaned_user = new_user.strip().lower()
+                cleaned_user = new_user.strip()
                 if not cleaned_user or not new_pass:
                     st.warning("Please fill in all fields.")
-                elif cleaned_user in st.session_state.users_db:
+                elif any(u.lower() == cleaned_user.lower() for u in st.session_state.users_db):
                     st.error("User ID already exists. Choose a different one.")
                 else:
                     st.session_state.users_db[cleaned_user] = {"password": new_pass}
-                    st.success(f"Account '{cleaned_user}' created successfully! Please click the '🔑 Login' tab above to sign in.")
+                    st.success(f"Account '{cleaned_user}' created successfully! Switch back to 'Login' to sign in.")
 
-    with tab_reset:
+    elif auth_choice == "Forgot Password":
         with st.form("reset_form_persistent"):
-            st.write("Reset your password by entering your User ID and a new password.")
-            reset_user = st.text_input("User ID", key="reset_user_field")
-            new_reset_pass = st.text_input("New Password", type="password", key="reset_pass_field")
+            reset_user = st.text_input("User ID")
+            new_reset_pass = st.text_input("New Password", type="password")
             submit_reset = st.form_submit_button("Update Password", use_container_width=True)
             
             if submit_reset:
-                cleaned_user = reset_user.strip().lower()
+                cleaned_user = reset_user.strip()
                 db = st.session_state.users_db
+                matched_user = next((u for u in db if u.lower() == cleaned_user.lower()), None)
+                
                 if not cleaned_user or not new_reset_pass:
                     st.warning("Please fill in all fields.")
-                elif cleaned_user in db:
-                    db[cleaned_user]["password"] = new_reset_pass
-                    st.success(f"Password for '{cleaned_user}' updated successfully! Switch to the Login tab.")
+                elif matched_user:
+                    db[matched_user]["password"] = new_reset_pass
+                    st.success(f"Password for '{matched_user}' updated successfully! Switch to 'Login' to sign in.")
                 else:
                     st.error("User ID not found in the system.")
     st.stop()
