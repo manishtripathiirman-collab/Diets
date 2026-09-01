@@ -87,7 +87,7 @@ if "users_db" not in st.session_state:
         "mantri": {"password": "@Priyaojha12"}
     }
 
-# Sync authentication state with URL query parameters so refreshing doesn't log you out
+# Sync authentication state with URL query parameters so refreshing never logs you out
 query_params = st.query_params
 url_user = query_params.get("user", "")
 
@@ -247,7 +247,7 @@ try:
                             time.sleep(1)
                             st.rerun()
 
-        # Category filter handling alphabetical sheet order seamlessly
+        # Category filter handling
         meal_category = st.radio(
             "Choose Meal Category:",
             ["All", "Breakfast", "Lunch", "Dinner"],
@@ -258,7 +258,7 @@ try:
         if meal_category == "All":
             filtered_df = df
         else:
-            filtered_df = df[df[meal_type_col].str.lower().str.contains(meal_category.lower(), na=False)]
+            filtered_df = df[df[meal_type_col].str.lower() == meal_category.lower()]
 
         if filtered_df.empty:
             st.info(f"No recipes found for **{meal_category}** yet. Check your Google Sheet column values.")
