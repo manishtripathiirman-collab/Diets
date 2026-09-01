@@ -79,7 +79,7 @@ def load_meal_data():
     data.columns = [c.strip() for c in data.columns]
     return data
 
-# --- FOOLPROOF USER DB & 24-HOUR PERSISTENT SESSION STATE ---
+# --- FOOLPROOF USER DB & URL-BASED PERSISTENCE FOR REFRESH IMMUNITY ---
 if "users_db" not in st.session_state:
     st.session_state.users_db = {
         "manish": {"password": "password123"},
@@ -87,23 +87,23 @@ if "users_db" not in st.session_state:
         "mantri": {"password": "@Priyaojha12"}
     }
 
-st.session_state.setdefault("authenticated", False)
-st.session_state.setdefault("username", "")
-st.session_state.setdefault("login_date", None)
+# Sync authentication state with URL query parameters so refreshing doesn't log you out
+query_params = st.query_params
+url_user = query_params.get("user", "")
 
-# Auto-expire session only if the calendar date changes (persists login for the entire day)
-today_str = date.today().isoformat()
-if st.session_state.authenticated and st.session_state.get("login_date") != today_str:
-    st.session_state.authenticated = False
-    st.session_state.username = ""
-    st.session_state.login_date = None
+if url_user and url_user in st.session_state.users_db:
+    st.session_state.authenticated = True
+    st.session_state.username = url_user
+else:
+    st.session_state.setdefault("authenticated", False)
+    st.session_state.setdefault("username", "")
 
 # --- AUTHENTICATION & REGISTRATION SCREEN ---
 if not st.session_state.authenticated:
     st.markdown("""
         <div class="watermark-banner">
             <h1>🔐 Member Access</h1>
-            <p>Login once and stay logged in for the entire day</p>
+            <p>Login once and stay logged in even across page refreshes</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -125,7 +125,7 @@ if not st.session_state.authenticated:
                 if matched_user and db[matched_user]["password"] == pass_input:
                     st.session_state.authenticated = True
                     st.session_state.username = matched_user
-                    st.session_state.login_date = today_str  # Lock session to today's date
+                    st.query_params["user"] = matched_user  # Save login state in URL query params
                     st.success("Login successful!")
                     time.sleep(0.5)
                     st.rerun()
@@ -184,7 +184,8 @@ with st.sidebar:
     if st.button("Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.username = ""
-        st.session_state.login_date = None
+        if "user" in st.query_params:
+            del st.query_params["user"]
         st.rerun()
     st.divider()
 
